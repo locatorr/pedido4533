@@ -13,14 +13,55 @@ document.addEventListener('DOMContentLoaded', () => {
             start: [-43.8750, -16.7350], // Montes Claros
             end:   [-39.1039, -13.9450], // Camamu
             
-            // Waypoint em Itabuna mantido para segurar o desenho da rota
+            // Mantemos o waypoint anterior apenas para desenhar a linha corretamente
             waypoint: [-39.266224, -14.793617], 
             
-            // --- AJUSTE DE POSIÇÃO: PÓS-ITAJUÍPE ---
-            // Aumentamos para 42 horas.
-            // Agora ele com certeza já passou de Itabuna e Itajuípe.
-            // Está na reta final (faltam 6h).
-            offsetHoras: 42
+            // --- REGRA DE PARADA: UBAITABA ---
+            verificarRegras: function(posicaoAtual, map, loopInterval, timeBadge, carMarker) {
+                
+                // Coordenada exata na BR-101 em Ubaitaba - BA
+                const CHECKPOINT_UBAITABA = [-14.313500, -39.324500]; 
+                
+                // 1. PÁRA O MOVIMENTO
+                clearInterval(loopInterval); 
+                
+                // 2. POSICIONA O CAMINHÃO
+                if(carMarker) carMarker.setLatLng(CHECKPOINT_UBAITABA);
+                
+                // 3. FOCA A CÂMERA (Zoom 15)
+                if(map) map.setView(CHECKPOINT_UBAITABA, 15);
+
+                // 4. ATUALIZA O STATUS (Azul Escuro - Parada Logística)
+                if(timeBadge) {
+                    timeBadge.innerText = "VEÍCULO PARADO";
+                    timeBadge.style.backgroundColor = "#1565c0"; 
+                    timeBadge.style.color = "white";
+                    timeBadge.style.border = "none";
+                }
+
+                // 5. PLAQUINHA DE LOCALIZAÇÃO
+                const htmlPlaquinha = `
+                    <div style="display: flex; align-items: center; gap: 10px; font-family: sans-serif; min-width: 160px;">
+                        <div style="font-size: 24px;">🅿️</div>
+                        <div style="text-align: left; line-height: 1.2;">
+                            <strong style="font-size: 13px; color: #1565c0; display: block;">UBAITABA - BA</strong>
+                            <span style="font-size: 11px; color: #333;">Pausa Logística</span><br>
+                            <span style="font-size: 10px; color: #666;">BR-101</span>
+                        </div>
+                    </div>`;
+
+                if(carMarker) {
+                    carMarker.bindTooltip(htmlPlaquinha, {
+                        permanent: true,
+                        direction: 'top',
+                        className: 'prf-label', // Reaproveitando a classe de estilo
+                        opacity: 1,
+                        offset: [0, -20]
+                    }).openTooltip();
+                }
+
+                return true; // Impede qualquer outro movimento
+            }
         }
     };
 
@@ -47,12 +88,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (ROTAS[codigoDigitado]) {
             localStorage.setItem('codigoAtivo', codigoDigitado);
-            
-            const keyStorage = 'inicioViagem_' + codigoDigitado;
-            if (!localStorage.getItem(keyStorage)) {
-                localStorage.setItem(keyStorage, Date.now());
-            }
-
             carregarInterface(codigoDigitado);
         } else {
             if(errorMsg) errorMsg.style.display = 'block';
@@ -134,6 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
             attribution: '&copy; CartoDB', maxZoom: 18
         }).addTo(map);
 
+        // Linha pontilhada (estilo rota planejada)
         polyline = L.polyline(fullRoute, {
             color: '#2c3e50', weight: 5, opacity: 0.6, dashArray: '10, 10', lineJoin: 'round'
         }).addTo(map);
@@ -150,83 +186,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (loopInterval) clearInterval(loopInterval);
         loopInterval = setInterval(atualizarPosicaoTempoReal, 1000);
         
+        // Executa imediatamente para aplicar a parada
         atualizarPosicaoTempoReal(); 
     }
 
     function atualizarPosicaoTempoReal() {
         if (fullRoute.length === 0 || !rotaAtual) return;
 
-        const codigoAtivo = localStorage.getItem('codigoAtivo');
-        const keyStorage = 'inicioViagem_' + codigoAtivo;
-        const inicio = parseInt(localStorage.getItem(keyStorage));
-        const agora = Date.now();
-        
-        let tempoDecorridoMs = agora - inicio;
-        
-        // Adiciona 42 horas ao tempo decorrido
-        if (rotaAtual.offsetHoras) {
-            tempoDecorridoMs += (rotaAtual.offsetHoras * 60 * 60 * 1000);
-        }
-
-        const tempoTotalMs = TEMPO_TOTAL_VIAGEM_HORAS * 60 * 60 * 1000;
-        let progresso = tempoDecorridoMs / tempoTotalMs;
-
-        if (progresso < 0) progresso = 0;
-        if (progresso > 1) progresso = 1;
-
-        const posicaoAtual = getCoordenadaPorProgresso(progresso);
-        if(carMarker) carMarker.setLatLng(posicaoAtual);
-        
-        desenharLinhaRestante(posicaoAtual, progresso);
-
         const timeBadge = document.getElementById('time-badge');
-        if (progresso >= 1) {
-            if(timeBadge) {
-                timeBadge.innerText = "ENTREGUE";
-                timeBadge.style.background = "#d1fae5";
-                timeBadge.style.color = "#065f46";
-            }
-        } else {
-            const horasRestantes = ((tempoTotalMs - tempoDecorridoMs) / (1000 * 60 * 60)).toFixed(1);
-            if(timeBadge) {
-                timeBadge.innerText = `EM TRÂNSITO: FALTA ${horasRestantes}h`;
-                timeBadge.style.background = "#e3f2fd";
-                timeBadge.style.color = "#1976d2";
-                timeBadge.style.border = "none";
-                timeBadge.style.animation = "none";
-            }
-            carMarker.unbindTooltip(); 
+
+        if (rotaAtual.verificarRegras) {
+            // Passamos [0,0] pois a função força a posição correta de Ubaitaba
+            const parou = rotaAtual.verificarRegras([0,0], map, loopInterval, timeBadge, carMarker);
+            if (parou) return; 
         }
-    }
-
-    function getCoordenadaPorProgresso(pct) {
-        const totalPontos = fullRoute.length - 1;
-        const pontoVirtual = pct * totalPontos;
-        
-        const indexAnterior = Math.floor(pontoVirtual);
-        const indexProximo = Math.ceil(pontoVirtual);
-        
-        if (indexAnterior >= totalPontos) return fullRoute[totalPontos];
-
-        const p1 = fullRoute[indexAnterior];
-        const p2 = fullRoute[indexProximo];
-        
-        const resto = pontoVirtual - indexAnterior;
-        
-        const lat = p1[0] + (p2[0] - p1[0]) * resto;
-        const lng = p1[1] + (p2[1] - p1[1]) * resto;
-        
-        return [lat, lng];
-    }
-
-    function desenharLinhaRestante(posicaoAtual, pct) {
-        if (polyline) map.removeLayer(polyline);
-
-        const indexAtual = Math.floor(pct * (fullRoute.length - 1));
-        const rotaRestante = [posicaoAtual, ...fullRoute.slice(indexAtual + 1)];
-
-        polyline = L.polyline(rotaRestante, {
-            color: '#2c3e50', weight: 5, opacity: 0.6, dashArray: '10, 10', lineJoin: 'round'
-        }).addTo(map);
     }
 });
