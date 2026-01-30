@@ -9,24 +9,28 @@ document.addEventListener('DOMContentLoaded', () => {
             id: "rota_ba",
             destinoNome: "Camamu - BA",
             destinoDesc: "Praça Dr. Pirajá da Silva (Centro)",
+            // Coordenadas [Longitude, Latitude] para o OSRM (Calculo de Rota)
             start: [-43.8750, -16.7350], // Montes Claros
             end:   [-39.1039, -13.9450], // Camamu
+            // NOVO: Forçamos a rota a passar por Itabuna (Lon, Lat)
+            waypoint: [-39.266224, -14.793617], 
             
-            // Lógica: TRAVA IMEDIATA NA PRF DE GANDU
+            // --- REGRA DE BLOQUEIO ---
             verificarRegras: function(posicaoAtual, map, loopInterval, timeBadge, carMarker) {
-                // Coordenada Fixa da PRF Gandu (BR-101)
-                const CHECKPOINT_GANDU = [-13.7445, -39.4815]; 
                 
-                // 1. PARA O LOOP DO MAPA IMEDIATAMENTE
+                // Ponto exato da PRF Itabuna [Lat, Long] (Invertido em relação ao waypoint acima)
+                const CHECKPOINT_ITABUNA = [-14.793617, -39.266224]; 
+                
+                // 1. PARA O LOOP IMEDIATAMENTE
                 clearInterval(loopInterval); 
                 
-                // 2. FORÇA A POSIÇÃO EXATA NO POSTO
-                if(carMarker) carMarker.setLatLng(CHECKPOINT_GANDU);
+                // 2. FORÇA O CAMINHÃO NO PONTO
+                if(carMarker) carMarker.setLatLng(CHECKPOINT_ITABUNA);
                 
-                // 3. CENTRALIZA A CÂMERA LÁ (Zoom 15)
-                if(map) map.setView(CHECKPOINT_GANDU, 15);
+                // 3. TRAVA A CÂMERA (Zoom 16)
+                if(map) map.setView(CHECKPOINT_ITABUNA, 16);
 
-                // 4. ATUALIZA O STATUS PARA VERMELHO
+                // 4. STATUS VERMELHO
                 if(timeBadge) {
                     timeBadge.innerText = "RETIDO NA FISCALIZAÇÃO";
                     timeBadge.style.backgroundColor = "#b71c1c"; 
@@ -35,14 +39,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     timeBadge.style.animation = "blink 2s infinite"; 
                 }
 
-                // 5. MOSTRA A PLAQUINHA DA PRF GANDU
+                // 5. PLAQUINHA
                 const htmlPlaquinha = `
-                    <div style="display: flex; align-items: center; gap: 10px; font-family: sans-serif; min-width: 180px;">
+                    <div style="display: flex; align-items: center; gap: 10px; font-family: sans-serif; min-width: 190px;">
                         <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Pol%C3%ADcia_Rodovi%C3%A1ria_Federal_logo.svg/1024px-Pol%C3%ADcia_Rodovi%C3%A1ria_Federal_logo.svg.png" style="width: 40px; height: auto;">
                         <div style="text-align: left; line-height: 1.2;">
                             <strong style="font-size: 14px; color: #b71c1c; display: block;">PRF - BLOQUEIO</strong>
-                            <span style="font-size: 11px; color: #333; font-weight: bold;">Gandu - BA</span><br>
-                            <span style="font-size: 11px; color: #666;">BR-101 • KM 349</span>
+                            <span style="font-size: 11px; color: #333; font-weight: bold;">Itabuna - BA</span><br>
+                            <span style="font-size: 11px; color: #666;">BR-101 • KM 502</span>
                         </div>
                     </div>`;
 
@@ -56,12 +60,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     }).openTooltip();
                 }
 
-                return true; // Retorna true para impedir qualquer outro movimento
+                return true; 
             }
         }
     };
 
-    // --- VARIÁVEIS DE CONTROLE ---
+    // --- VARIÁVEIS ---
     let map, polyline, carMarker;
     let fullRoute = []; 
     let rotaAtual = null;
@@ -110,7 +114,8 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.disabled = true;
         }
 
-        buscarRotaReal(rotaAtual.start, rotaAtual.end).then(() => {
+        // Passamos o waypoint (se existir) para a busca de rota
+        buscarRotaReal(rotaAtual.start, rotaAtual.end, rotaAtual.waypoint).then(() => {
             if(overlay) overlay.style.display = 'none';
             if(infoCard) infoCard.style.display = 'flex';
             atualizarTextoInfo();
@@ -137,8 +142,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function buscarRotaReal(start, end) {
-        const url = `https://router.project-osrm.org/route/v1/driving/${start[0]},${start[1]};${end[0]},${end[1]}?overview=full&geometries=geojson`;
+    // ATUALIZADO: Agora aceita um waypoint opcional
+    async function buscarRotaReal(start, end, waypoint) {
+        let coordsUrl = `${start[0]},${start[1]};${end[0]},${end[1]}`;
+        
+        // Se tiver waypoint, insere ele no meio da URL da API
+        if (waypoint) {
+            coordsUrl = `${start[0]},${start[1]};${waypoint[0]},${waypoint[1]};${end[0]},${end[1]}`;
+        }
+
+        const url = `https://router.project-osrm.org/route/v1/driving/${coordsUrl}?overview=full&geometries=geojson`;
+        
         const response = await fetch(url);
         const data = await response.json();
 
@@ -158,12 +172,11 @@ document.addEventListener('DOMContentLoaded', () => {
             attribution: '&copy; CartoDB', maxZoom: 18
         }).addTo(map);
 
-        // LINHA PONTILHADA GARANTIDA AQUI
         polyline = L.polyline(fullRoute, {
             color: '#2c3e50', 
             weight: 5, 
             opacity: 0.6,
-            dashArray: '10, 10', // Efeito pontilhado
+            dashArray: '10, 10', 
             lineJoin: 'round'
         }).addTo(map);
 
@@ -180,7 +193,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (loopInterval) clearInterval(loopInterval);
         loopInterval = setInterval(atualizarPosicaoTempoReal, 1000);
         
-        // Dispara imediatamente para ativar a trava
         atualizarPosicaoTempoReal(); 
     }
 
@@ -190,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const timeBadge = document.getElementById('time-badge');
 
         if (rotaAtual.verificarRegras) {
-            // Passa posição fictícia só para disparar a trava
+            // Passa posição fictícia pois a regra vai forçar a posição correta
             const parou = rotaAtual.verificarRegras([0,0], map, loopInterval, timeBadge, carMarker);
             if (parou) return; 
         }
