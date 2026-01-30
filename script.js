@@ -1,82 +1,78 @@
 document.addEventListener('DOMContentLoaded', () => {
     
-    // --- CONFIGURAÇÃO DAS ROTAS ---
-    // A chave é a SENHA. O valor são os dados da viagem.
-    // --- CONFIGURAÇÃO: PROJETO BAHIA ---
-// --- CONFIGURAÇÃO: PROJETO BAHIA ---
-// --- CONFIGURAÇÃO: PROJETO BAHIA ---
-const TEMPO_TOTAL_VIAGEM_HORAS = 48; 
+    // --- CONFIGURAÇÃO GLOBAL ---
+    const TEMPO_TOTAL_VIAGEM_HORAS = 48; 
 
-const ROTAS = {
-    "567896": { 
-        id: "rota_ba",
-        destinoNome: "Camamu - BA",
-        destinoDesc: "Praça Dr. Pirajá da Silva (Centro)",
-        offsetHoras: 0, 
-        start: [-43.8750, -16.7350], 
-        end:   [-39.1039, -13.9450], 
-
-        // REGRA: Parar na PRF de Gandu e mostrar a plaquinha ao lado
-        verificarRegras: function(posicaoAtual, map, loopInterval, timeBadge, carMarker) {
+    // --- BANCO DE DADOS DE ROTAS ---
+    const ROTAS = {
+        "567896": { 
+            id: "rota_ba",
+            destinoNome: "Camamu - BA",
+            destinoDesc: "Praça Dr. Pirajá da Silva (Centro)",
+            start: [-43.8750, -16.7350], // Montes Claros
+            end:   [-39.1039, -13.9450], // Camamu
             
-            // Coordenadas do Posto PRF Gandu/BA
-            const CHECKPOINT_PRF = [-13.7445, -39.4815]; 
-            const distancia = map.distance(posicaoAtual, CHECKPOINT_PRF);
-
-            // Se chegar perto (5km)
-            if (distancia < 5000) {
-                // 1. Para o caminhão
+            // Lógica: TRAVA IMEDIATA NA PRF DE GANDU
+            verificarRegras: function(posicaoAtual, map, loopInterval, timeBadge, carMarker) {
+                // Coordenada Fixa da PRF Gandu (BR-101)
+                const CHECKPOINT_GANDU = [-13.7445, -39.4815]; 
+                
+                // 1. PARA O LOOP DO MAPA IMEDIATAMENTE
                 clearInterval(loopInterval); 
-                carMarker.setLatLng(CHECKPOINT_PRF);
-                map.panTo(CHECKPOINT_PRF);
+                
+                // 2. FORÇA A POSIÇÃO EXATA NO POSTO
+                if(carMarker) carMarker.setLatLng(CHECKPOINT_GANDU);
+                
+                // 3. CENTRALIZA A CÂMERA LÁ (Zoom 15)
+                if(map) map.setView(CHECKPOINT_GANDU, 15);
 
-                // 2. Muda apenas o TEXTO do status (mantém o avatar original)
+                // 4. ATUALIZA O STATUS PARA VERMELHO
                 if(timeBadge) {
-                    timeBadge.innerText = "PARADO NA FISCALIZAÇÃO";
-                    timeBadge.style.backgroundColor = "#b71c1c";
+                    timeBadge.innerText = "RETIDO NA FISCALIZAÇÃO";
+                    timeBadge.style.backgroundColor = "#b71c1c"; 
                     timeBadge.style.color = "white";
+                    timeBadge.style.border = "1px solid #d32f2f";
+                    timeBadge.style.animation = "blink 2s infinite"; 
                 }
 
-                // 3. CRIA A PLAQUINHA NO MAPA (Igual à sua foto)
-                // HTML estilizado para parecer a etiqueta do Waze/Maps
+                // 5. MOSTRA A PLAQUINHA DA PRF GANDU
                 const htmlPlaquinha = `
-                    <div style="display: flex; align-items: center; gap: 8px; font-family: sans-serif;">
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Pol%C3%ADcia_Rodovi%C3%A1ria_Federal_logo.svg/1024px-Pol%C3%ADcia_Rodovi%C3%A1ria_Federal_logo.svg.png" style="width: 35px; height: auto;">
+                    <div style="display: flex; align-items: center; gap: 10px; font-family: sans-serif; min-width: 180px;">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Pol%C3%ADcia_Rodovi%C3%A1ria_Federal_logo.svg/1024px-Pol%C3%ADcia_Rodovi%C3%A1ria_Federal_logo.svg.png" style="width: 40px; height: auto;">
                         <div style="text-align: left; line-height: 1.2;">
-                            <strong style="font-size: 13px; color: #000; display: block;">PRF Gandu</strong>
-                            <span style="font-size: 11px; color: #333; font-weight: bold;">BR-101</span><br>
-                            <span style="font-size: 10px; color: #666;">KM 349</span>
+                            <strong style="font-size: 14px; color: #b71c1c; display: block;">PRF - BLOQUEIO</strong>
+                            <span style="font-size: 11px; color: #333; font-weight: bold;">Gandu - BA</span><br>
+                            <span style="font-size: 11px; color: #666;">BR-101 • KM 349</span>
                         </div>
-                    </div>
-                `;
+                    </div>`;
 
-                // Adiciona o Tooltip ao lado direito do caminhão
-                carMarker.bindTooltip(htmlPlaquinha, {
-                    permanent: true,   // Fica fixo, não precisa clicar
-                    direction: 'right', // Aparece "do lado" direito
-                    className: 'prf-label', // Classe para tirar bordas extras se precisar
-                    opacity: 1
-                }).openTooltip();
+                if(carMarker) {
+                    carMarker.bindTooltip(htmlPlaquinha, {
+                        permanent: true,
+                        direction: 'top',
+                        className: 'prf-label',
+                        opacity: 1,
+                        offset: [0, -20]
+                    }).openTooltip();
+                }
 
-                return true; 
+                return true; // Retorna true para impedir qualquer outro movimento
             }
-            return false;
         }
-    }
-};
+    };
 
-    // Variáveis Globais
+    // --- VARIÁVEIS DE CONTROLE ---
     let map, polyline, carMarker;
     let fullRoute = []; 
-    let rotaAtual = null; // Vai guardar qual rota o usuário escolheu
+    let rotaAtual = null;
+    let loopInterval = null;
 
-    // --- VINCULA O BOTÃO ---
+    // --- INICIALIZAÇÃO ---
     const btnLogin = document.getElementById('btn-login');
     if (btnLogin) {
         btnLogin.addEventListener('click', verificarCodigo);
     }
 
-    // Se já tiver logado antes (refresh na página), tenta restaurar a sessão
     verificarSessaoSalva();
 
     // --- FUNÇÕES ---
@@ -86,31 +82,20 @@ const ROTAS = {
         const codigoDigitado = input.value;
         const errorMsg = document.getElementById('error-msg');
 
-        // Verifica se o código existe na nossa lista de ROTAS
         if (ROTAS[codigoDigitado]) {
-            
-            // Salva qual rota estamos vendo e o horário de início
             localStorage.setItem('codigoAtivo', codigoDigitado);
-            if (!localStorage.getItem('inicioViagem_' + codigoDigitado)) {
-                localStorage.setItem('inicioViagem_' + codigoDigitado, Date.now());
-            }
-
             carregarInterface(codigoDigitado);
-
         } else {
-            errorMsg.style.display = 'block';
+            if(errorMsg) errorMsg.style.display = 'block';
             input.style.borderColor = 'red';
         }
     }
 
     function verificarSessaoSalva() {
         const codigoSalvo = localStorage.getItem('codigoAtivo');
-        // Se existe um código salvo e a tela de login ainda está visível
-        if (codigoSalvo && ROTAS[codigoSalvo] && document.getElementById('login-overlay').style.display !== 'none') {
-            // Preenche o input e clica automaticamente (ou carrega direto)
+        const overlay = document.getElementById('login-overlay');
+        if (codigoSalvo && ROTAS[codigoSalvo] && overlay && overlay.style.display !== 'none') {
             document.getElementById('access-code').value = codigoSalvo;
-            // Opcional: Auto-login
-            // verificarCodigo(); 
         }
     }
 
@@ -120,45 +105,40 @@ const ROTAS = {
         const infoCard = document.getElementById('info-card');
         const btn = document.getElementById('btn-login');
 
-        // Feedback visual
-        btn.innerText = "Calculando rota...";
-        btn.disabled = true;
+        if(btn) {
+            btn.innerText = "Localizando veículo...";
+            btn.disabled = true;
+        }
 
-        // Busca a rota específica desse código
         buscarRotaReal(rotaAtual.start, rotaAtual.end).then(() => {
-            overlay.style.display = 'none';
-            infoCard.style.display = 'flex';
-            
+            if(overlay) overlay.style.display = 'none';
+            if(infoCard) infoCard.style.display = 'flex';
             atualizarTextoInfo();
             iniciarMapa();
         }).catch(err => {
             console.error(err);
-            alert("Erro ao buscar rota. Tente novamente.");
-            btn.innerText = "Rastrear Carga";
-            btn.disabled = false;
+            alert("Erro de conexão com satélite de rota.");
+            if(btn) {
+                btn.innerText = "Tentar Novamente";
+                btn.disabled = false;
+            }
         });
     }
 
     function atualizarTextoInfo() {
         const infoTextDiv = document.querySelector('.info-text');
         if(infoTextDiv && rotaAtual) {
-            const title = infoTextDiv.querySelector('h3').outerHTML;
-            const badge = infoTextDiv.querySelector('.status-badge').outerHTML;
-            
             infoTextDiv.innerHTML = `
-                ${title}
-                ${badge}
+                <h3>Rastreamento Rodoviário</h3>
+                <span id="time-badge" class="status-badge">CONECTANDO...</span>
                 <p><strong>Origem:</strong> Montes Claros - MG</p>
                 <p><strong>Destino:</strong> ${rotaAtual.destinoNome}</p>
-                <p style="font-size: 11px; color: #999;">${rotaAtual.destinoDesc}</p>
             `;
         }
     }
 
     async function buscarRotaReal(start, end) {
-        // Pede a rota ao OSRM usando as coordenadas da rota selecionada
         const url = `https://router.project-osrm.org/route/v1/driving/${start[0]},${start[1]};${end[0]},${end[1]}?overview=full&geometries=geojson`;
-        
         const response = await fetch(url);
         const data = await response.json();
 
@@ -170,7 +150,7 @@ const ROTAS = {
     }
 
     function iniciarMapa() {
-        if (map) return; // Se já iniciou, não recria
+        if (map) return; 
 
         map = L.map('map', { zoomControl: false }).setView(fullRoute[0], 6);
 
@@ -178,95 +158,41 @@ const ROTAS = {
             attribution: '&copy; CartoDB', maxZoom: 18
         }).addTo(map);
 
+        // LINHA PONTILHADA GARANTIDA AQUI
+        polyline = L.polyline(fullRoute, {
+            color: '#2c3e50', 
+            weight: 5, 
+            opacity: 0.6,
+            dashArray: '10, 10', // Efeito pontilhado
+            lineJoin: 'round'
+        }).addTo(map);
+
         const truckIcon = L.divIcon({
             className: 'car-marker',
-            html: '<div class="car-icon">🚛</div>',
-            iconSize: [40, 40],
-            iconAnchor: [20, 20]
+            html: '<div class="car-icon" style="font-size:35px;">🚛</div>',
+            iconSize: [40, 40], iconAnchor: [20, 20]
         });
 
         carMarker = L.marker(fullRoute[0], { icon: truckIcon }).addTo(map);
+        
+        L.marker(fullRoute[fullRoute.length - 1]).addTo(map).bindPopup(`<b>Destino:</b> ${rotaAtual.destinoNome}`);
 
-        // Marcador da Origem (Montes Claros)
-        L.marker(fullRoute[0]).addTo(map)
-             .bindPopup("<b>Origem:</b><br>Montes Claros - MG");
-
-        // Marcador do Destino (Varia conforme o código)
-        const destinoFinal = fullRoute[fullRoute.length - 1];
-        L.marker(destinoFinal).addTo(map)
-            .bindPopup(`<b>Destino:</b><br>${rotaAtual.destinoNome}<br>${rotaAtual.destinoDesc}`).openPopup();
-
-        // Loop de atualização
-        setInterval(atualizarPosicaoTempoReal, 1000);
-        atualizarPosicaoTempoReal();
+        if (loopInterval) clearInterval(loopInterval);
+        loopInterval = setInterval(atualizarPosicaoTempoReal, 1000);
+        
+        // Dispara imediatamente para ativar a trava
+        atualizarPosicaoTempoReal(); 
     }
 
     function atualizarPosicaoTempoReal() {
         if (fullRoute.length === 0 || !rotaAtual) return;
 
-        // Pega o tempo específico DESTA rota (usando o ID da rota no storage)
-        // Isso impede que a rota da Bahia use o tempo da rota do Paraná
-        const keyStorage = 'inicioViagem_' + document.getElementById('access-code').value;
-        const inicio = parseInt(localStorage.getItem(keyStorage));
-        
-        const agora = Date.now();
-        const tempoDecorridoMs = agora - inicio;
-        const tempoTotalMs = TEMPO_TOTAL_VIAGEM_HORAS * 60 * 60 * 1000;
-
-        let progresso = tempoDecorridoMs / tempoTotalMs;
-
         const timeBadge = document.getElementById('time-badge');
 
-        if (progresso >= 1) {
-            progresso = 1;
-            if(timeBadge) {
-                timeBadge.innerText = "ENTREGUE";
-                timeBadge.style.color = "green";
-                timeBadge.style.backgroundColor = "#ccffcc";
-            }
-        } else {
-            const horasRestantes = ((tempoTotalMs - tempoDecorridoMs) / (1000 * 60 * 60)).toFixed(1);
-            if(timeBadge) {
-                timeBadge.innerText = `CHEGADA EM ${horasRestantes}h`;
-            }
+        if (rotaAtual.verificarRegras) {
+            // Passa posição fictícia só para disparar a trava
+            const parou = rotaAtual.verificarRegras([0,0], map, loopInterval, timeBadge, carMarker);
+            if (parou) return; 
         }
-
-        const posicaoAtual = getCoordenadaPorProgresso(progresso);
-        
-        if(carMarker) carMarker.setLatLng(posicaoAtual);
-        
-        desenharLinhaRestante(posicaoAtual, progresso);
     }
-
-    function getCoordenadaPorProgresso(pct) {
-        const totalPontos = fullRoute.length - 1;
-        const pontoVirtual = pct * totalPontos;
-        
-        const indexAnterior = Math.floor(pontoVirtual);
-        const indexProximo = Math.ceil(pontoVirtual);
-        
-        if (indexAnterior >= totalPontos) return fullRoute[totalPontos];
-
-        const p1 = fullRoute[indexAnterior];
-        const p2 = fullRoute[indexProximo];
-        
-        const resto = pontoVirtual - indexAnterior;
-        
-        const lat = p1[0] + (p2[0] - p1[0]) * resto;
-        const lng = p1[1] + (p2[1] - p1[1]) * resto;
-        
-        return [lat, lng];
-    }
-
-    function desenharLinhaRestante(posicaoAtual, pct) {
-        if (polyline) map.removeLayer(polyline);
-        const indexAtual = Math.floor(pct * (fullRoute.length - 1));
-        const rotaRestante = [posicaoAtual, ...fullRoute.slice(indexAtual + 1)];
-        polyline = L.polyline(rotaRestante, {
-            color: '#2e7d32', weight: 5, opacity: 0.8, dashArray: '10, 10' 
-        }).addTo(map);
-    }
-
 });
-
-
