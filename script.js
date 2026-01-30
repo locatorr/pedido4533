@@ -24,8 +24,6 @@ const ROTAS = {
     }
 };
 
-    const TEMPO_TOTAL_VIAGEM_HORAS = 48; 
-
     // Variáveis Globais
     let map, polyline, carMarker;
     let fullRoute = []; 
@@ -229,3 +227,4 @@ const ROTAS = {
     }
 
 });
+
