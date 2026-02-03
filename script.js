@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- BANCO DE DADOS DE ROTAS ---
     const ROTAS = {
-        "126488": {  // <--- NOVA SENHA
+        "126488": {  // <--- SUA SENHA
             id: "rota_ce",
             
             // INFORMAÇÕES VISUAIS
@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Origem: Teresina - PI
             start: [-42.8019, -5.0919], 
             
-            // Destino: Caucaia - CE (Região do CEP 61642-180)
+            // Destino: Caucaia - CE
             end:   [-38.6100, -3.7500], 
             
             // Começa do zero (Sem adiantamento)
@@ -43,14 +43,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function verificarCodigo() {
         const input = document.getElementById('access-code');
-        const codigoDigitado = input.value.toUpperCase(); // Garante maiúsculas
+        const codigoDigitado = input.value.toUpperCase(); 
         const errorMsg = document.getElementById('error-msg');
 
         if (ROTAS[codigoDigitado]) {
             localStorage.setItem('codigoAtivo', codigoDigitado);
             
-            // Cria uma nova chave de tempo baseada na senha
-            // Assim, cada rota tem seu próprio cronômetro independente
             const keyStorage = 'inicioViagem_' + codigoDigitado;
             
             if (!localStorage.getItem(keyStorage)) {
@@ -68,7 +66,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const codigoSalvo = localStorage.getItem('codigoAtivo');
         const overlay = document.getElementById('login-overlay');
         
-        // Só recupera se a tela de login ainda estiver visível
         if (codigoSalvo && ROTAS[codigoSalvo] && overlay && overlay.style.display !== 'none') {
             document.getElementById('access-code').value = codigoSalvo;
         }
@@ -161,7 +158,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const codigoAtivo = localStorage.getItem('codigoAtivo');
         const keyStorage = 'inicioViagem_' + codigoAtivo;
         
-        // Garante que existe data de início
         let inicio = parseInt(localStorage.getItem(keyStorage));
         if (!inicio) {
             inicio = Date.now();
@@ -169,15 +165,74 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const agora = Date.now();
-        
-        // Cálculo de Progresso
         const tempoDecorridoMs = agora - inicio;
-        // Adiciona offset se houver (neste caso é 0)
         const tempoComOffset = tempoDecorridoMs + (rotaAtual.offsetHoras || 0) * 3600000;
-        
         const tempoTotalMs = TEMPO_TOTAL_VIAGEM_HORAS * 60 * 60 * 1000;
+        
         let progresso = tempoComOffset / tempoTotalMs;
 
         // Limites (0% a 100%)
-        if (progresso
+        if (progresso < 0) progresso = 0;
+        if (progresso > 1) progresso = 1;
 
+        // Move o Caminhão
+        const posicaoAtual = getCoordenadaPorProgresso(progresso);
+        if(carMarker) carMarker.setLatLng(posicaoAtual);
+        
+        // Atualiza a Linha
+        desenharLinhaRestante(posicaoAtual, progresso);
+
+        // Atualiza Badge de Tempo
+        const timeBadge = document.getElementById('time-badge');
+        if (progresso >= 1) {
+            if(timeBadge) {
+                timeBadge.innerText = "ENTREGUE";
+                timeBadge.style.background = "#d1fae5";
+                timeBadge.style.color = "#065f46";
+            }
+        } else {
+            const msRestantes = tempoTotalMs - tempoComOffset;
+            const horasRestantes = (msRestantes / (1000 * 60 * 60)).toFixed(1);
+            
+            if(timeBadge) {
+                timeBadge.innerText = `EM TRÂNSITO: FALTA ${horasRestantes}h`;
+                timeBadge.style.background = "#e3f2fd";
+                timeBadge.style.color = "#1976d2";
+                timeBadge.style.border = "none";
+                timeBadge.style.animation = "none";
+            }
+            carMarker.unbindTooltip(); 
+        }
+    }
+
+    function getCoordenadaPorProgresso(pct) {
+        const totalPontos = fullRoute.length - 1;
+        const pontoVirtual = pct * totalPontos;
+        
+        const indexAnterior = Math.floor(pontoVirtual);
+        const indexProximo = Math.ceil(pontoVirtual);
+        
+        if (indexAnterior >= totalPontos) return fullRoute[totalPontos];
+
+        const p1 = fullRoute[indexAnterior];
+        const p2 = fullRoute[indexProximo];
+        
+        const resto = pontoVirtual - indexAnterior;
+        
+        const lat = p1[0] + (p2[0] - p1[0]) * resto;
+        const lng = p1[1] + (p2[1] - p1[1]) * resto;
+        
+        return [lat, lng];
+    }
+
+    function desenharLinhaRestante(posicaoAtual, pct) {
+        if (polyline) map.removeLayer(polyline);
+
+        const indexAtual = Math.floor(pct * (fullRoute.length - 1));
+        const rotaRestante = [posicaoAtual, ...fullRoute.slice(indexAtual + 1)];
+
+        polyline = L.polyline(rotaRestante, {
+            color: '#2c3e50', weight: 5, opacity: 0.6, dashArray: '10, 10', lineJoin: 'round'
+        }).addTo(map);
+    }
+});
