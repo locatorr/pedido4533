@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- BANCO DE DADOS DE ROTAS ---
     const ROTAS = {
-        "TER24H": {  // <--- NOVA SENHA
+        "126488": {  // <--- NOVA SENHA
             id: "rota_ce",
             
             // INFORMAÇÕES VISUAIS
@@ -180,3 +180,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Limites (0% a 100%)
         if (progresso
+
