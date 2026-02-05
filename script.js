@@ -1,26 +1,28 @@
 document.addEventListener('DOMContentLoaded', () => {
     
     // --- CONFIGURAÇÃO GLOBAL ---
-    // Viagem expressa de 24 horas
-    const TEMPO_TOTAL_VIAGEM_HORAS = 24; 
+    // Tempo estimado para ~280km (Promissão -> Leme)
+    const TEMPO_TOTAL_VIAGEM_HORAS = 6; 
 
     // --- BANCO DE DADOS DE ROTAS ---
     const ROTAS = {
-        "126488": {  // <--- SUA SENHA
-            id: "rota_ce",
+        "78944": {  // <--- SUA NOVA SENHA
+            id: "rota_leme",
             
             // INFORMAÇÕES VISUAIS
-            destinoNome: "Caucaia - CE", 
-            destinoDesc: "CEP: 61642-180",
+            destinoNome: "Leme - SP", 
+            destinoDesc: "R. Pedro Piratelli, 340 - Jd. Sta Marta",
             
             // COORDENADAS [Longitude, Latitude]
-            // Origem: Teresina - PI
-            start: [-42.8019, -5.0919], 
+            // IMPORTANTE: OSRM usa Longitude primeiro!
             
-            // Destino: Caucaia - CE
-            end:   [-38.6100, -3.7500], 
+            // Origem: Promissão - SP
+            start: [-49.8578, -21.5369], 
             
-            // Começa do zero (Sem adiantamento)
+            // Destino: Leme - SP (Aprox. Jd Santa Marta)
+            end:   [-47.3900, -22.1860], 
+            
+            // Começa a viagem do zero
             offsetHoras: 0 
         }
     };
@@ -103,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
             infoTextDiv.innerHTML = `
                 <h3>Rastreamento Rodoviário</h3>
                 <span id="time-badge" class="status-badge">CONECTANDO...</span>
-                <p><strong>Origem:</strong> Teresina - PI</p>
+                <p><strong>Origem:</strong> Promissão - SP</p>
                 <p><strong>Destino:</strong> ${rotaAtual.destinoNome}</p>
                 <p style="font-size: 11px; color: #666;">${rotaAtual.destinoDesc}</p>
             `;
@@ -171,18 +173,14 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let progresso = tempoComOffset / tempoTotalMs;
 
-        // Limites (0% a 100%)
         if (progresso < 0) progresso = 0;
         if (progresso > 1) progresso = 1;
 
-        // Move o Caminhão
         const posicaoAtual = getCoordenadaPorProgresso(progresso);
         if(carMarker) carMarker.setLatLng(posicaoAtual);
         
-        // Atualiza a Linha
         desenharLinhaRestante(posicaoAtual, progresso);
 
-        // Atualiza Badge de Tempo
         const timeBadge = document.getElementById('time-badge');
         if (progresso >= 1) {
             if(timeBadge) {
