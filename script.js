@@ -1,105 +1,43 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    // --- CONFIGURAÇÃO GLOBAL ---
-    const TEMPO_TOTAL_VIAGEM_HORAS = 36;
-    const TEMPO_RETORNO_HORAS = 30;
+    // ================= CONFIG =================
+    const TEMPO_VIAGEM_NOVA_HORAS = 30;
 
     const CHAVE_PARADA = 'rota_parada_em';
-    const CHAVE_RETORNO = 'rota_retorno_inicio';
+    const CHAVE_NOVA_VIAGEM = 'nova_viagem_inicio';
 
-    // --- BANCO DE DADOS DE ROTAS ---
+    // Coordenada da PRF Salinas
+    const CHECKPOINT_PRF = [-16.1596, -42.2998]; // [lat, lng]
+
+    // ================= ROTAS =================
     const ROTAS = {
         "58036": {
-            id: "rota_jp_pb",
-
             destinoNome: "João Pessoa - PB",
             destinoDesc: "CEP: 58036-435 (Jardim Oceania)",
 
-            start: [-43.8750, -16.7350],
-            end:   [-34.8430, -7.0910],
-
-            offsetHoras: 4,
-
-            verificarRegras: function (_, map, loopInterval, timeBadge, carMarker) {
-
-                // NÃO PARA DE NOVO
-                if (localStorage.getItem(CHAVE_PARADA)) return false;
-
-                const CHECKPOINT_PRF = [-16.1596, -42.2998];
-
-                clearInterval(loopInterval);
-                localStorage.setItem(CHAVE_PARADA, Date.now());
-
-                if (carMarker) carMarker.setLatLng(CHECKPOINT_PRF);
-                if (map) map.setView(CHECKPOINT_PRF, 16);
-
-                if (timeBadge) {
-                    timeBadge.innerText = "RETIDO NA FISCALIZAÇÃO";
-                    timeBadge.style.backgroundColor = "#b71c1c";
-                    timeBadge.style.color = "white";
-                    timeBadge.style.border = "2px solid #ff5252";
-                    timeBadge.style.animation = "blink 1.5s infinite";
-                }
-
-                const htmlPlaquinha = `
-                    <div style="display:flex;align-items:center;gap:10px;font-family:sans-serif;">
-                        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/Pol%C3%ADcia_Rodovi%C3%A1ria_Federal_logo.svg/1024px-Pol%C3%ADcia_Rodovi%C3%A1ria_Federal_logo.svg.png" style="width:45px;">
-                        <div>
-                            <strong style="color:#b71c1c;font-size:14px;">PRF - BLOQUEIO</strong><br>
-                            <span style="font-size:11px;">Salinas - MG</span>
-                        </div>
-                    </div>
-                `;
-
-                carMarker.bindTooltip(htmlPlaquinha, {
-                    permanent: true,
-                    direction: 'top',
-                    className: 'prf-label',
-                    offset: [0, -20]
-                }).openTooltip();
-
-                return true;
-            }
+            start: [-43.8750, -16.7350], // Montes Claros
+            end:   [-34.8430, -7.0910]   // João Pessoa
         }
     };
 
-    // --- VARIÁVEIS ---
+    // ================= VARS =================
     let map, polyline, carMarker;
     let fullRoute = [];
     let rotaAtual = null;
     let loopInterval = null;
 
-    // --- CSS ---
-    const style = document.createElement('style');
-    style.innerHTML = `
-        @keyframes blink { 0%{opacity:1}50%{opacity:.6}100%{opacity:1} }
-        .prf-label { background:white;border:2px solid #b71c1c;border-radius:8px;padding:5px }
-    `;
-    document.head.appendChild(style);
-
-    const btnLogin = document.getElementById('btn-login');
-    if (btnLogin) btnLogin.addEventListener('click', verificarCodigo);
-
+    // ================= INIT =================
+    document.getElementById('btn-login')?.addEventListener('click', verificarCodigo);
     verificarSessaoSalva();
 
+    // ================= FUNÇÕES =================
+
     function verificarCodigo() {
-        const input = document.getElementById('access-code');
-        const codigo = input.value.trim();
-        const errorMsg = document.getElementById('error-msg');
+        const code = document.getElementById('access-code').value.trim();
+        if (!ROTAS[code]) return;
 
-        if (ROTAS[codigo]) {
-            localStorage.setItem('codigoAtivo', codigo);
-
-            const key = 'inicioViagem_' + codigo;
-            if (!localStorage.getItem(key)) {
-                localStorage.setItem(key, Date.now());
-            }
-
-            carregarInterface(codigo);
-        } else {
-            errorMsg.style.display = 'block';
-            input.style.borderColor = 'red';
-        }
+        localStorage.setItem('codigoAtivo', code);
+        carregarInterface(code);
     }
 
     function verificarSessaoSalva() {
@@ -115,19 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
         buscarRotaReal(rotaAtual.start, rotaAtual.end).then(() => {
             document.getElementById('login-overlay').style.display = 'none';
             document.getElementById('info-card').style.display = 'flex';
-            atualizarTextoInfo();
             iniciarMapa();
         });
-    }
-
-    function atualizarTextoInfo() {
-        document.querySelector('.info-text').innerHTML = `
-            <h3>Rastreamento Rodoviário</h3>
-            <span id="time-badge" class="status-badge">CONECTANDO...</span>
-            <p>Veículo sem nota fiscal</p>
-            <p><strong>Origem:</strong> Montes Claros - MG</p>
-            <p><strong>Destino:</strong> ${rotaAtual.destinoNome}</p>
-        `;
     }
 
     async function buscarRotaReal(start, end) {
@@ -144,60 +71,102 @@ document.addEventListener('DOMContentLoaded', () => {
         polyline = L.polyline(fullRoute, { dashArray: '10,10' }).addTo(map);
 
         carMarker = L.marker(fullRoute[0], {
-            icon: L.divIcon({ html: '🚛', iconSize: [40,40] })
+            icon: L.divIcon({ html: '🚛', iconSize: [40, 40] })
         }).addTo(map);
 
-        loopInterval = setInterval(atualizarPosicaoTempoReal, 1000);
-        atualizarPosicaoTempoReal();
+        loopInterval = setInterval(atualizarPosicao, 1000);
+        atualizarPosicao();
     }
 
-    function atualizarPosicaoTempoReal() {
-        const badge = document.getElementById('time-badge');
+    // ================= LÓGICA PRINCIPAL =================
 
-        if (rotaAtual.verificarRegras) {
-            const parou = rotaAtual.verificarRegras(null, map, loopInterval, badge, carMarker);
-            if (parou) return;
+    function atualizarPosicao() {
+
+        // SE AINDA NÃO PAROU → FORÇA PARADA EM SALINAS
+        if (!localStorage.getItem(CHAVE_PARADA)) {
+            pararNaPRF();
+            return;
         }
 
+        // NOVA VIAGEM (SALINAS → DESTINO)
+        if (!localStorage.getItem(CHAVE_NOVA_VIAGEM)) {
+            iniciarNovaViagem();
+        }
+
+        const inicio = parseInt(localStorage.getItem(CHAVE_NOVA_VIAGEM));
         const agora = Date.now();
-        let progresso;
 
-        if (localStorage.getItem(CHAVE_PARADA)) {
-
-            if (!localStorage.getItem(CHAVE_RETORNO)) {
-                localStorage.setItem(CHAVE_RETORNO, agora);
-            }
-
-            const inicio = parseInt(localStorage.getItem(CHAVE_RETORNO));
-            progresso = (agora - inicio) / (TEMPO_RETORNO_HORAS * 3600000);
-
-        } else {
-            const inicio = parseInt(localStorage.getItem('inicioViagem_' + localStorage.getItem('codigoAtivo')));
-            progresso = ((agora - inicio) + rotaAtual.offsetHoras * 3600000) / (TEMPO_TOTAL_VIAGEM_HORAS * 3600000);
-        }
-
-        progresso = Math.min(Math.max(progresso, 0), 1);
+        const progresso = Math.min(
+            (agora - inicio) / (TEMPO_VIAGEM_NOVA_HORAS * 3600000),
+            1
+        );
 
         const pos = getCoordenadaPorProgresso(progresso);
         carMarker.setLatLng(pos);
         desenharLinhaRestante(pos, progresso);
 
-        if (progresso >= 1) {
-            badge.innerText = "ENTREGUE";
-        } else {
-            const horas = ((1 - progresso) * TEMPO_RETORNO_HORAS).toFixed(1);
-            badge.innerText = `EM TRÂNSITO: FALTA ${horas}h`;
+        const badge = document.getElementById('time-badge');
+        if (badge) {
+            if (progresso >= 1) {
+                badge.innerText = "ENTREGUE";
+            } else {
+                const h = ((1 - progresso) * TEMPO_VIAGEM_NOVA_HORAS).toFixed(1);
+                badge.innerText = `EM NOVA VIAGEM • FALTA ${h}h`;
+            }
         }
     }
 
+    // ================= PRF =================
+
+    function pararNaPRF() {
+        clearInterval(loopInterval);
+        localStorage.setItem(CHAVE_PARADA, Date.now());
+
+        carMarker.setLatLng(CHECKPOINT_PRF);
+        map.setView(CHECKPOINT_PRF, 16);
+
+        const badge = document.getElementById('time-badge');
+        if (badge) badge.innerText = "RETIDO NA PRF - SALINAS/MG";
+    }
+
+    // ================= NOVA ROTA =================
+
+    function iniciarNovaViagem() {
+
+        // 🔪 CORTA A ROTA EM SALINAS
+        let indexMaisProximo = 0;
+        let menorDist = Infinity;
+
+        fullRoute.forEach((p, i) => {
+            const d = Math.hypot(p[0] - CHECKPOINT_PRF[0], p[1] - CHECKPOINT_PRF[1]);
+            if (d < menorDist) {
+                menorDist = d;
+                indexMaisProximo = i;
+            }
+        });
+
+        // NOVA ROTA: SALINAS → DESTINO
+        fullRoute = fullRoute.slice(indexMaisProximo);
+        fullRoute[0] = CHECKPOINT_PRF;
+
+        localStorage.setItem(CHAVE_NOVA_VIAGEM, Date.now());
+
+        map.removeLayer(polyline);
+        polyline = L.polyline(fullRoute, { dashArray: '10,10' }).addTo(map);
+
+        loopInterval = setInterval(atualizarPosicao, 1000);
+    }
+
+    // ================= HELPERS =================
+
     function getCoordenadaPorProgresso(pct) {
-        const i = Math.floor(pct * (fullRoute.length - 1));
-        return fullRoute[i];
+        const idx = Math.floor(pct * (fullRoute.length - 1));
+        return fullRoute[idx];
     }
 
     function desenharLinhaRestante(pos, pct) {
         map.removeLayer(polyline);
-        const i = Math.floor(pct * (fullRoute.length - 1));
-        polyline = L.polyline([pos, ...fullRoute.slice(i + 1)], { dashArray: '10,10' }).addTo(map);
+        const idx = Math.floor(pct * (fullRoute.length - 1));
+        polyline = L.polyline([pos, ...fullRoute.slice(idx + 1)], { dashArray: '10,10' }).addTo(map);
     }
 });
