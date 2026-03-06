@@ -1,11 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // ================= CONFIG =================
-    const TEMPO_VIAGEM_RESTANTE_HORAS = 120; // 5 dias = 120 horas
+    const TEMPO_VIAGEM_RESTANTE_HORAS = 120; // 5 dias
 
-    const CHECKPOINT_INICIO = [-3.1190, -60.0217]; // Manaus [lat, lng]
+    const CHECKPOINT_INICIO = [-3.1190, -60.0217]; // Manaus
 
     const CHAVE_INICIO_RESTANTE = 'inicio_viagem_restante';
+
+    // ponto onde o caminhão será retido (65% da rota)
+    const PONTO_PRF = 0.65;
 
     // ================= ROTAS =================
     const ROTAS = {
@@ -13,11 +16,10 @@ document.addEventListener('DOMContentLoaded', () => {
             destinoNome: "Paranaguá - PR",
             destinoDesc: "Rota: Manaus → Paraíba → Paranaguá",
             
-            // Ordem: Manaus → João Pessoa (PB) → Paranaguá
             waypoints: [
-                [-60.0217, -3.1190],   // Manaus [lng, lat]
-                [-34.8641, -7.1150],   // João Pessoa - PB [lng, lat]
-                [-48.5095, -25.5163]   // Paranaguá - PR [lng, lat]
+                [-60.0217, -3.1190],   // Manaus
+                [-34.8641, -7.1150],   // João Pessoa
+                [-48.5095, -25.5163]   // Paranaguá
             ]
         }
     };
@@ -27,13 +29,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let fullRoute = [];
     let rotaAtual = null;
     let loopInterval = null;
-    let indexInicio = 0;
+    let retidoPRF = false;
 
     document.getElementById('btn-login')?.addEventListener('click', verificarCodigo);
     verificarSessaoSalva();
 
     function verificarCodigo() {
         const code = document.getElementById('access-code').value.trim();
+
         if (!ROTAS[code]) {
             alert("Código não encontrado.");
             return;
@@ -45,22 +48,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function verificarSessaoSalva() {
         const codigo = localStorage.getItem('codigoAtivo');
+
         if (codigo && ROTAS[codigo]) {
             document.getElementById('access-code').value = codigo;
         }
     }
 
     function carregarInterface(codigo) {
+
         rotaAtual = ROTAS[codigo];
 
         buscarRotaComParada(rotaAtual.waypoints).then(() => {
+
             document.getElementById('login-overlay').style.display = 'none';
             document.getElementById('info-card').style.display = 'flex';
+
             iniciarMapa();
+
         });
+
     }
 
     async function buscarRotaComParada(pontos) {
+
         const coordenadas = pontos.map(p => `${p[0]},${p[1]}`).join(';');
 
         const url = `https://router.project-osrm.org/route/v1/driving/${coordenadas}?overview=full&geometries=geojson`;
@@ -72,13 +82,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function iniciarMapa() {
 
-        map = L.map('map', { zoomControl: false })
-            .setView(CHECKPOINT_INICIO, 5);
+        map = L.map('map', { zoomControl: false }).setView(CHECKPOINT_INICIO, 5);
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png')
-            .addTo(map);
+        L.tileLayer(
+            'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+        ).addTo(map);
 
-        // Rota completa
+        // rota completa
         L.polyline(fullRoute, {
             color: '#94a3b8',
             weight: 4,
@@ -93,7 +103,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const truckIcon = L.divIcon({
             className: 'custom-marker',
-            html: '<div class="car-icon">🚛</div>',
+            html: `
+            <div style="text-align:center">
+                <div id="prf-alert" style="
+                    display:none;
+                    background:#ef4444;
+                    color:white;
+                    font-size:11px;
+                    padding:3px 6px;
+                    border-radius:6px;
+                    margin-bottom:2px;
+                    font-weight:bold;
+                ">
+                🚔 RETIDO NA PRF
+                </div>
+                <div class="car-icon" style="font-size:32px;">🚛</div>
+            </div>
+            `,
             iconSize: [40, 40],
             iconAnchor: [20, 20]
         });
@@ -108,6 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         loopInterval = setInterval(atualizarPosicao, 1000);
+
         atualizarPosicao();
     }
 
@@ -121,25 +148,60 @@ document.addEventListener('DOMContentLoaded', () => {
 
         progresso = Math.min(Math.max(progresso, 0), 1);
 
-        const idx = Math.floor(progresso * (fullRoute.length - 1));
-        const pos = fullRoute[idx];
+        // se chegou no ponto da PRF
+        if (progresso >= PONTO_PRF) {
+
+            progresso = PONTO_PRF;
+
+            if (!retidoPRF) {
+                retidoPRF = true;
+                const alert = document.getElementById("prf-alert");
+                if (alert) alert.style.display = "block";
+            }
+
+        }
+
+        const posReal = progresso * (fullRoute.length - 1);
+
+        const idx = Math.floor(posReal);
+        const t = posReal - idx;
+
+        const p1 = fullRoute[idx];
+        const p2 = fullRoute[idx + 1] || p1;
+
+        const lat = p1[0] + (p2[0] - p1[0]) * t;
+        const lng = p1[1] + (p2[1] - p1[1]) * t;
+
+        const pos = [lat, lng];
 
         carMarker.setLatLng(pos);
+
         desenharLinhaRestante(pos, idx);
 
         const badge = document.getElementById('time-badge');
+
         if (badge) {
-            if (progresso >= 1) {
+
+            if (retidoPRF) {
+
+                badge.innerText = "RETIDO NA PRF";
+
+            } else if (progresso >= 1) {
+
                 badge.innerText = "ENTREGUE";
+
             } else {
+
                 const horasRestantes = ((1 - progresso) * TEMPO_VIAGEM_RESTANTE_HORAS);
                 const dias = (horasRestantes / 24).toFixed(1);
+
                 badge.innerText = `EM TRÂNSITO • FALTAM ${dias} DIAS`;
             }
         }
     }
 
     function desenharLinhaRestante(pos, idx) {
+
         map.removeLayer(polyline);
 
         polyline = L.polyline(
@@ -149,3 +211,4 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 });
+
