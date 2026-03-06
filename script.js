@@ -1,14 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // ================= CONFIG =================
-    const TEMPO_VIAGEM_RESTANTE_HORAS = 120; // 5 dias
-
     const CHECKPOINT_INICIO = [-3.1190, -60.0217]; // Manaus
-
     const CHAVE_INICIO_RESTANTE = 'inicio_viagem_restante';
 
-    // ponto onde o caminhão será retido (65% da rota)
-    const PONTO_PRF = 0.65;
+    // ponto da rota onde ficará parado (entre João Pessoa e Paranaguá)
+    const POSICAO_PRF = 0.70;
 
     // ================= ROTAS =================
     const ROTAS = {
@@ -28,8 +25,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let map, polyline, carMarker;
     let fullRoute = [];
     let rotaAtual = null;
-    let loopInterval = null;
-    let retidoPRF = false;
 
     document.getElementById('btn-login')?.addEventListener('click', verificarCodigo);
     verificarSessaoSalva();
@@ -101,67 +96,8 @@ document.addEventListener('DOMContentLoaded', () => {
             dashArray: '10,10'
         }).addTo(map);
 
-        const truckIcon = L.divIcon({
-            className: 'custom-marker',
-            html: `
-            <div style="text-align:center">
-                <div id="prf-alert" style="
-                    display:none;
-                    background:#ef4444;
-                    color:white;
-                    font-size:11px;
-                    padding:3px 6px;
-                    border-radius:6px;
-                    margin-bottom:2px;
-                    font-weight:bold;
-                ">
-                🚔 RETIDO NA PRF
-                </div>
-                <div class="car-icon" style="font-size:32px;">🚛</div>
-            </div>
-            `,
-            iconSize: [40, 40],
-            iconAnchor: [20, 20]
-        });
-
-        carMarker = L.marker(fullRoute[0], {
-            icon: truckIcon,
-            zIndexOffset: 1000
-        }).addTo(map);
-
-        if (!localStorage.getItem(CHAVE_INICIO_RESTANTE)) {
-            localStorage.setItem(CHAVE_INICIO_RESTANTE, Date.now());
-        }
-
-        loopInterval = setInterval(atualizarPosicao, 1000);
-
-        atualizarPosicao();
-    }
-
-    function atualizarPosicao() {
-
-        const inicio = parseInt(localStorage.getItem(CHAVE_INICIO_RESTANTE));
-        const agora = Date.now();
-
-        let progresso = (agora - inicio) /
-            (TEMPO_VIAGEM_RESTANTE_HORAS * 3600000);
-
-        progresso = Math.min(Math.max(progresso, 0), 1);
-
-        // se chegou no ponto da PRF
-        if (progresso >= PONTO_PRF) {
-
-            progresso = PONTO_PRF;
-
-            if (!retidoPRF) {
-                retidoPRF = true;
-                const alert = document.getElementById("prf-alert");
-                if (alert) alert.style.display = "block";
-            }
-
-        }
-
-        const posReal = progresso * (fullRoute.length - 1);
+        // cálculo da posição onde ficará parado
+        const posReal = POSICAO_PRF * (fullRoute.length - 1);
 
         const idx = Math.floor(posReal);
         const t = posReal - idx;
@@ -174,30 +110,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const pos = [lat, lng];
 
-        carMarker.setLatLng(pos);
+        const truckIcon = L.divIcon({
+            className: 'custom-marker',
+            html: `
+            <div style="text-align:center">
+                <div style="
+                    background:#ef4444;
+                    color:white;
+                    font-size:11px;
+                    padding:3px 6px;
+                    border-radius:6px;
+                    margin-bottom:3px;
+                    font-weight:bold;
+                ">
+                🚔 RETIDO NA PRF
+                </div>
+                <div style="font-size:32px;">🚛</div>
+            </div>
+            `,
+            iconSize: [40, 40],
+            iconAnchor: [20, 20]
+        });
 
-        desenharLinhaRestante(pos, idx);
+        carMarker = L.marker(pos, {
+            icon: truckIcon,
+            zIndexOffset: 1000
+        }).addTo(map);
+
+        map.setView(pos, 6);
 
         const badge = document.getElementById('time-badge');
-
         if (badge) {
-
-            if (retidoPRF) {
-
-                badge.innerText = "RETIDO NA PRF";
-
-            } else if (progresso >= 1) {
-
-                badge.innerText = "ENTREGUE";
-
-            } else {
-
-                const horasRestantes = ((1 - progresso) * TEMPO_VIAGEM_RESTANTE_HORAS);
-                const dias = (horasRestantes / 24).toFixed(1);
-
-                badge.innerText = `EM TRÂNSITO • FALTAM ${dias} DIAS`;
-            }
+            badge.innerText = "RETIDO NA PRF";
         }
+
+        desenharLinhaRestante(pos, idx);
     }
 
     function desenharLinhaRestante(pos, idx) {
@@ -211,4 +158,5 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
 });
+
 
