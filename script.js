@@ -2,94 +2,55 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ================= CONFIG =================
 
-    // NOVOS PONTOS (CEP CONVERTIDO)
     const ORIGEM = [-1.798, -61.384]; // CEP 69250-000
     const DESTINO = [-19.967, -44.198]; // CEP 32185-362
 
     const DURACAO_VIAGEM = 72 * 60 * 60 * 1000; // 3 dias
     const CHAVE_INICIO = "inicio_viagem";
 
-    // ================= ROTAS =================
-
-    const ROTAS = {
-        "58036": {
-            destinoNome: "Minas Gerais - MG",
-            destinoDesc: "Rota: Amazonas → Minas Gerais",
-            waypoints: [
-                [-61.384, -1.798],
-                [-44.198, -19.967]
-            ]
-        }
-    };
-
-    // ================= VARIÁVEIS =================
-
     let map;
     let fullRoute = [];
     let carMarker;
     let polyline;
 
-    document.getElementById('btn-login')?.addEventListener('click', verificarCodigo);
+    document.getElementById('btn-login')?.addEventListener('click', iniciarSistema);
 
-    verificarSessaoSalva();
-
-    function verificarCodigo() {
+    function iniciarSistema() {
 
         const code = document.getElementById('access-code').value.trim();
 
-        if (!ROTAS[code]) {
-            alert("Código não encontrado.");
+        if (code !== "58036") {
+            alert("Código inválido");
             return;
         }
 
-        localStorage.setItem('codigoAtivo', code);
-
-        // 🔥 SEMPRE REINICIA A VIAGEM AO ABRIR
+        // SEMPRE REINICIA
         localStorage.setItem(CHAVE_INICIO, Date.now());
 
-        carregarInterface(code);
+        gerarRotaFake();
+        iniciarMapa();
+
+        document.getElementById('login-overlay').style.display = 'none';
+        document.getElementById('info-card').style.display = 'flex';
     }
 
-    function verificarSessaoSalva() {
+    // ================= ROTA DIRETA (SEM API) =================
 
-        const codigo = localStorage.getItem('codigoAtivo');
+    function gerarRotaFake() {
 
-        if (codigo && ROTAS[codigo]) {
-            document.getElementById('access-code').value = codigo;
+        fullRoute = [];
 
-            // 🔥 FORÇA COMEÇAR DO ZERO AO RECARREGAR
-            localStorage.setItem(CHAVE_INICIO, Date.now());
+        const passos = 500; // quanto maior, mais suave
 
-            carregarInterface(codigo);
+        for (let i = 0; i <= passos; i++) {
+
+            const t = i / passos;
+
+            const lat = ORIGEM[0] + (DESTINO[0] - ORIGEM[0]) * t;
+            const lng = ORIGEM[1] + (DESTINO[1] - ORIGEM[1]) * t;
+
+            fullRoute.push([lat, lng]);
         }
-    }
-
-    function carregarInterface(codigo) {
-
-        const rota = ROTAS[codigo];
-
-        buscarRota(rota.waypoints).then(() => {
-
-            document.getElementById('login-overlay').style.display = 'none';
-            document.getElementById('info-card').style.display = 'flex';
-
-            iniciarMapa();
-
-        });
-
-    }
-
-    // ================= BUSCAR ROTA =================
-
-    async function buscarRota(pontos) {
-
-        const coordenadas = pontos.map(p => `${p[0]},${p[1]}`).join(';');
-
-        const url = `https://router.project-osrm.org/route/v1/driving/${coordenadas}?overview=full&geometries=geojson`;
-
-        const data = await fetch(url).then(r => r.json());
-
-        fullRoute = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
     }
 
     // ================= MAPA =================
@@ -102,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
         ).addTo(map);
 
-        // rota completa
+        // rota total
         L.polyline(fullRoute, {
             color: '#94a3b8',
             weight: 4,
@@ -137,10 +98,9 @@ document.addEventListener('DOMContentLoaded', () => {
             iconAnchor: [20,20]
         });
 
-        // COMEÇA EXATAMENTE NA ORIGEM
+        // COMEÇA NO CEP INICIAL
         carMarker = L.marker(ORIGEM, {
-            icon: truckIcon,
-            zIndexOffset: 1000
+            icon: truckIcon
         }).addTo(map);
 
         iniciarMovimento();
@@ -169,63 +129,33 @@ document.addEventListener('DOMContentLoaded', () => {
             atualizarLinha(posicao);
 
         }, 2000);
-
     }
 
     // ================= POSIÇÃO =================
 
     function calcularPosicao(progresso) {
 
-        const posReal = progresso * (fullRoute.length - 1);
+        const index = Math.floor(progresso * (fullRoute.length - 1));
 
-        const idx = Math.floor(posReal);
-
-        const t = posReal - idx;
-
-        const p1 = fullRoute[idx];
-        const p2 = fullRoute[idx + 1] || p1;
-
-        const lat = p1[0] + (p2[0] - p1[0]) * t;
-        const lng = p1[1] + (p2[1] - p1[1]) * t;
-
-        return [lat, lng];
+        return fullRoute[index];
     }
 
     // ================= LINHA =================
 
     function atualizarLinha(pos) {
 
-        const idx = encontrarIndiceMaisProximo(pos);
+        const index = fullRoute.findIndex(p => p[0] === pos[0] && p[1] === pos[1]);
 
         map.removeLayer(polyline);
 
         polyline = L.polyline(
-            [pos, ...fullRoute.slice(idx + 1)],
+            fullRoute.slice(index),
             {
                 dashArray: '10,10',
                 color: '#2563eb',
                 weight: 5
             }
         ).addTo(map);
-    }
-
-    function encontrarIndiceMaisProximo(pos) {
-
-        let menor = Infinity;
-        let indice = 0;
-
-        fullRoute.forEach((p, i) => {
-
-            const d = Math.hypot(p[0] - pos[0], p[1] - pos[1]);
-
-            if (d < menor) {
-                menor = d;
-                indice = i;
-            }
-
-        });
-
-        return indice;
     }
 
 });
