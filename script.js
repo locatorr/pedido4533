@@ -2,21 +2,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ================= CONFIG =================
 
-    const ORIGEM = [-3.1190, -60.0217]; // Manaus
-    const DESTINO = [-3.7327, -38.5270]; // CEP 60175-005 Fortaleza
+    // NOVOS PONTOS (CEP CONVERTIDO)
+    const ORIGEM = [-1.798, -61.384]; // CEP 69250-000
+    const DESTINO = [-19.967, -44.198]; // CEP 32185-362
 
-    const DURACAO_VIAGEM = 72 * 60 * 60 * 1000; // 3 dias em ms
+    const DURACAO_VIAGEM = 72 * 60 * 60 * 1000; // 3 dias
     const CHAVE_INICIO = "inicio_viagem";
 
     // ================= ROTAS =================
 
     const ROTAS = {
         "58036": {
-            destinoNome: "Fortaleza - CE",
-            destinoDesc: "Rota: Manaus → Fortaleza",
+            destinoNome: "Minas Gerais - MG",
+            destinoDesc: "Rota: Amazonas → Minas Gerais",
             waypoints: [
-                [-60.0217, -3.1190],
-                [-38.5270, -3.7327]
+                [-61.384, -1.798],
+                [-44.198, -19.967]
             ]
         }
     };
@@ -43,9 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         localStorage.setItem('codigoAtivo', code);
 
-        if (!localStorage.getItem(CHAVE_INICIO)) {
-            localStorage.setItem(CHAVE_INICIO, Date.now());
-        }
+        // 🔥 SEMPRE REINICIA A VIAGEM AO ABRIR
+        localStorage.setItem(CHAVE_INICIO, Date.now());
 
         carregarInterface(code);
     }
@@ -56,6 +56,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (codigo && ROTAS[codigo]) {
             document.getElementById('access-code').value = codigo;
+
+            // 🔥 FORÇA COMEÇAR DO ZERO AO RECARREGAR
+            localStorage.setItem(CHAVE_INICIO, Date.now());
+
             carregarInterface(codigo);
         }
     }
@@ -98,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
         ).addTo(map);
 
-        // rota completa cinza
+        // rota completa
         L.polyline(fullRoute, {
             color: '#94a3b8',
             weight: 4,
@@ -133,6 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
             iconAnchor: [20,20]
         });
 
+        // COMEÇA EXATAMENTE NA ORIGEM
         carMarker = L.marker(ORIGEM, {
             icon: truckIcon,
             zIndexOffset: 1000
@@ -141,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
         iniciarMovimento();
     }
 
-    // ================= MOVIMENTO EM TEMPO REAL =================
+    // ================= MOVIMENTO =================
 
     function iniciarMovimento() {
 
@@ -167,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     }
 
-    // ================= CALCULAR POSIÇÃO =================
+    // ================= POSIÇÃO =================
 
     function calcularPosicao(progresso) {
 
@@ -186,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return [lat, lng];
     }
 
-    // ================= LINHA RESTANTE =================
+    // ================= LINHA =================
 
     function atualizarLinha(pos) {
 
