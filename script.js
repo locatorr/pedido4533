@@ -1,130 +1,146 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    // ================= CONFIG =================
+    // ================= CONFIGURAÇÃO =================
+    const TEMPO_VIAGEM_TOTAL_HORAS = 72;
+    const CHAVE_INICIO = 'inicio_viagem_mg_1h';
 
-    const CEP_ORIGEM = "69250000";   // Manaus (ajuste se quiser)
-    const CEP_DESTINO = "32185362";
+    // ===== LOCAL ONDE A MOTO ESTAVA PARADA =====
+    const PARADA_PRF = {
+        ativo: true,
+        coordenada: [-8.7619, -63.9039] // Porto Velho
+    };
 
-    const DURACAO_VIAGEM = 72 * 60 * 60 * 1000; // 3 dias
-    const CHAVE_INICIO = "inicio_viagem";
+    // ================= ROTAS =================
+    const ROTAS = {
+        "651541": {
+            destinoNome: "Betim - MG",
+            destinoDesc: "CEP: 32185-362",
 
-    const API_KEY = "SUA_API_KEY_AQUI";
+            // ✅ ALTERADO (CEP 78590-000)
+            start: [-11.8604, -55.5050],
 
-    let map;
+            // ✅ ALTERADO (CEP 32185-362)
+            end: [-19.967, -44.198],
+
+            offsetHoras: 0
+        }
+    };
+
+    // ================= VARIÁVEIS =================
+    let map, polyline, carMarker;
     let fullRoute = [];
-    let carMarker;
-    let polyline;
+    let rotaAtual = null;
+    let loopInterval = null;
+    let indiceInicio = 0;
 
-    document.getElementById('btn-login')?.addEventListener('click', iniciarSistema);
+    // ================= INIT =================
+    const btnLogin = document.getElementById('btn-login');
 
-    async function iniciarSistema() {
+    if (btnLogin) {
+        btnLogin.addEventListener('click', verificarCodigo);
+    }
 
-        const code = document.getElementById('access-code').value.trim();
+    verificarSessaoSalva();
 
-        if (code !== "58036") {
+    // ================= FUNÇÕES =================
+
+    function verificarCodigo() {
+
+        const input = document.getElementById('access-code');
+        const code = input.value.replace(/[^0-9]/g, '');
+
+        if (!ROTAS[code]) {
             alert("Código inválido");
             return;
         }
 
-        localStorage.setItem(CHAVE_INICIO, Date.now());
+        localStorage.setItem('codigoAtivo', code);
 
-        const origem = await geocodificarCEP(CEP_ORIGEM);
-        const destino = await geocodificarCEP(CEP_DESTINO);
+        const keyStorage = CHAVE_INICIO + '_' + code;
 
-        await gerarRotaReal(origem, destino);
-        iniciarMapa(origem);
-
-        document.getElementById('login-overlay').style.display = 'none';
-        document.getElementById('info-card').style.display = 'flex';
-    }
-
-    // ================= CEP → COORDENADA =================
-
-    async function geocodificarCEP(cep) {
-
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&country=Brazil&postalcode=${cep}`);
-        const data = await res.json();
-
-        if (!data.length) {
-            alert("CEP não encontrado: " + cep);
-            throw new Error("Erro no CEP");
+        if (!localStorage.getItem(keyStorage)) {
+            localStorage.setItem(keyStorage, Date.now());
         }
 
-        return [
-            parseFloat(data[0].lat),
-            parseFloat(data[0].lon)
-        ];
+        carregarInterface(code);
     }
 
-    // ================= ROTA REAL =================
+    function verificarSessaoSalva() {
 
-    async function gerarRotaReal(origem, destino) {
+        const codigo = localStorage.getItem('codigoAtivo');
 
-        const res = await fetch(`https://api.openrouteservice.org/v2/directions/driving-car/geojson`, {
-            method: 'POST',
-            headers: {
-                'Authorization': API_KEY,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                coordinates: [
-                    [origem[1], origem[0]],
-                    [destino[1], destino[0]]
-                ]
-            })
+        if (codigo && ROTAS[codigo]) {
+            const input = document.getElementById('access-code');
+            if (input) input.value = codigo;
+        }
+    }
+
+    function carregarInterface(codigo) {
+
+        rotaAtual = ROTAS[codigo];
+
+        buscarRotaReal(rotaAtual.start, rotaAtual.end).then(() => {
+
+            document.getElementById('login-overlay').style.display = 'none';
+            document.getElementById('info-card').style.display = 'flex';
+
+            atualizarTextoInfo();
+            iniciarMapa();
+
         });
-
-        const data = await res.json();
-
-        const coords = data.features[0].geometry.coordinates;
-
-        // converter para [lat, lng]
-        fullRoute = coords.map(c => [c[1], c[0]]);
     }
 
-    // ================= MAPA =================
+    function atualizarTextoInfo() {
 
-    function iniciarMapa(origem) {
+        const infoTextDiv = document.querySelector('.info-text');
 
-        map = L.map('map').setView(origem, 5);
+        if (infoTextDiv && rotaAtual) {
 
-        L.tileLayer(
-            'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
-        ).addTo(map);
+            infoTextDiv.innerHTML = `
+                <h3>Rastreamento Rodoviário</h3>
+                <span id="time-badge" class="status-badge">EM MOVIMENTO</span>
+                <p><strong>Origem:</strong> Sinop - MT</p>
+                <p><strong>Destino:</strong> ${rotaAtual.destinoNome}</p>
+                <p style="font-size:11px;color:#666;">${rotaAtual.destinoDesc}</p>
+            `;
+        }
+    }
 
-        // rota completa (fundo)
-        L.polyline(fullRoute, {
-            color: '#94a3b8',
-            weight: 4
+    async function buscarRotaReal(start, end) {
+
+        // ✅ CORREÇÃO IMPORTANTE: OSRM usa LNG,LAT
+        const url = `https://router.project-osrm.org/route/v1/driving/${start[1]},${start[0]};${end[1]},${end[0]}?overview=full&geometries=geojson`;
+
+        const data = await fetch(url).then(r => r.json());
+
+        fullRoute = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+
+        indiceInicio = encontrarIndiceMaisProximo(PARADA_PRF.coordenada);
+    }
+
+    function iniciarMapa() {
+
+        map = L.map('map', { zoomControl: false }).setView(PARADA_PRF.coordenada, 6);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; CartoDB',
+            maxZoom: 18
         }).addTo(map);
 
-        polyline = L.polyline([], {
+        polyline = L.polyline(fullRoute, {
             color: '#2563eb',
-            weight: 5
+            weight: 5,
+            dashArray: '10,10'
         }).addTo(map);
 
-        const truckIcon = L.divIcon({
-            html: `
-            <div style="text-align:center">
-                <div style="
-                    background:#2563eb;
-                    color:white;
-                    font-size:11px;
-                    padding:3px 6px;
-                    border-radius:6px;
-                    margin-bottom:3px;
-                    font-weight:bold;
-                ">
-                🚚 EM ROTA
-                </div>
-                <div style="font-size:32px;">🚛</div>
-            </div>
-            `,
+        const motoIcon = L.divIcon({
+            className: 'custom-marker',
+            html: '<div style="font-size:35px;">🏍️</div>',
             iconSize: [40,40],
             iconAnchor: [20,20]
         });
 
-        carMarker = L.marker(origem, { icon: truckIcon }).addTo(map);
+        carMarker = L.marker(fullRoute[indiceInicio], { icon: motoIcon }).addTo(map);
 
         iniciarMovimento();
     }
@@ -133,40 +149,54 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function iniciarMovimento() {
 
-        const inicio = parseInt(localStorage.getItem(CHAVE_INICIO));
+        const tempoTotal = TEMPO_VIAGEM_TOTAL_HORAS * 3600000;
 
-        setInterval(() => {
+        const inicio = Date.now();
+
+        loopInterval = setInterval(() => {
 
             const agora = Date.now();
 
-            let progresso = (agora - inicio) / DURACAO_VIAGEM;
-            if (progresso > 1) progresso = 1;
+            const progresso = (agora - inicio) / tempoTotal;
 
-            const pos = calcularPosicao(progresso);
+            if (progresso >= 1) {
+                clearInterval(loopInterval);
+                return;
+            }
+
+            const posIndex = indiceInicio + Math.floor(progresso * (fullRoute.length - indiceInicio));
+
+            const pos = fullRoute[posIndex];
 
             carMarker.setLatLng(pos);
-            map.panTo(pos, { animate: true });
 
-            atualizarLinha(progresso);
+            map.panTo(pos);
 
         }, 2000);
     }
 
-    // ================= POSIÇÃO =================
+    // ================= AUX =================
 
-    function calcularPosicao(progresso) {
+    function encontrarIndiceMaisProximo(coord) {
 
-        const index = Math.floor(progresso * (fullRoute.length - 1));
-        return fullRoute[index];
-    }
+        let menor = Infinity;
+        let indice = 0;
 
-    // ================= LINHA =================
+        fullRoute.forEach((p, i) => {
 
-    function atualizarLinha(progresso) {
+            const d = Math.sqrt(
+                Math.pow(p[0] - coord[0], 2) +
+                Math.pow(p[1] - coord[1], 2)
+            );
 
-        const index = Math.floor(progresso * (fullRoute.length - 1));
+            if (d < menor) {
+                menor = d;
+                indice = i;
+            }
 
-        polyline.setLatLngs(fullRoute.slice(0, index));
+        });
+
+        return indice;
     }
 
 });
