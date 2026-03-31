@@ -1,30 +1,31 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // ================= CONFIGURAÇÃO =================
-    const TEMPO_VIAGEM_TOTAL_HORAS = 72;
-    const CHAVE_INICIO = 'inicio_viagem_mg_1h';
+   // ================= CONFIGURAÇÃO =================
+const TEMPO_VIAGEM_TOTAL_HORAS = 22;
+const CHAVE_INICIO = 'inicio_viagem_mg_1h';
 
-    // ===== LOCAL ONDE A MOTO ESTAVA PARADA =====
-    const PARADA_PRF = {
-        ativo: true,
-        coordenada: [-8.7619, -63.9039] // Porto Velho
-    };
+// ===== LOCAL ONDE A MOTO ESTAVA PARADA =====
+const PARADA_PRF = {
+    ativo: true,
+    coordenada: [-21.787, -46.561] // Poços de Caldas - MG (aprox CEP 37701-391)
+};
 
-    // ================= ROTAS =================
-    const ROTAS = {
-        "651541": {
-            destinoNome: "Betim - MG",
-            destinoDesc: "CEP: 32185-362",
+// ================= ROTAS =================
+const ROTAS = {
+    "651541": {
+        destinoNome: "Coordenada Final",
+        destinoDesc: "Lat: -15.926929, Lng: -44.008354",
 
-            // ✅ ALTERADO (CEP 78590-000)
-            start: [-11.8604, -55.5050],
+        // ✅ ORIGEM (MG - CEP 37701-391)
+        start: [-21.787, -46.561],
 
-            // ✅ ALTERADO (CEP 32185-362)
-            end: [-19.967, -44.198],
+        // ✅ DESTINO (coordenadas informadas)
+        end: [-15.926929, -44.008354],
 
-            offsetHoras: 0
-        }
-    };
+        offsetHoras: 0
+    }
+};
 
     // ================= VARIÁVEIS =================
     let map, polyline, carMarker;
