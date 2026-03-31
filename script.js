@@ -13,15 +13,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Nota: No JavaScript, o mês começa do zero (Janeiro = 0, Fevereiro = 1, Março = 2)
     const DATA_SAIDA_FIXA = new Date(2026, 2, 31, 8, 0, 0).getTime();
 
+    // Local da parada (Curvelo - MG)
+    const CURVELO = [-18.7564, -44.4308];
+
     let map;
     let fullRoute = [];
-    let carMarker;
+    let retainedMarker;
     let polyline;
 
     document.getElementById('btn-login')?.addEventListener('click', verificarCodigo);
     verificarSessaoSalva();
 
-    // ================= LOGIN (A TELA INICIAL CONTINUA AQUI) =================
+    // ================= LOGIN =================
     function verificarCodigo() {
         const inputElement = document.getElementById('access-code');
         if (!inputElement) return;
@@ -98,12 +101,14 @@ document.addEventListener('DOMContentLoaded', () => {
     function iniciarMapa() {
         if (map) return;
 
-        map = L.map('map', { zoomControl: false }).setView([-18.2, -44.1], 7);
+        // Centraliza o mapa inicialmente em Curvelo
+        map = L.map('map', { zoomControl: false }).setView(CURVELO, 9);
 
         L.tileLayer(
             'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
         ).addTo(map);
 
+        // Desenha a rota inteira (BH -> São João da Ponte)
         polyline = L.polyline(fullRoute, {
             color: '#2563eb', 
             weight: 5,
@@ -111,12 +116,13 @@ document.addEventListener('DOMContentLoaded', () => {
             opacity: 0.8
         }).addTo(map);
 
-        const truckIcon = L.divIcon({
+        // Ícone customizado do Caminhão Parado (ÍCONE ORIGINAL)
+        const truckStatusIcon = L.divIcon({
             className: 'custom-marker',
             html: `
-            <div style="text-align:center">
+            <div style="text-align:center; width: 140px; margin-left: -70px;">
                 <div style="
-                    background:#2563eb;
+                    background:#ef4444; /* Vermelho para indicar problema */
                     color:white;
                     font-size:11px;
                     padding:4px 8px;
@@ -124,71 +130,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     margin-bottom:2px;
                     font-weight:bold;
                     box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+                    display: inline-block;
                 ">
-                🚚 EM ROTA
+                ⚠️ FALTA DE NOTA FISCAL
                 </div>
                 <div style="font-size:32px; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.4));">🚛</div>
             </div>
             `,
-            iconSize: [60,60],
-            iconAnchor: [30,30]
+            iconSize: [0, 0], // Zera o tamanho base para o offset manual do CSS acima funcionar melhor
+            iconAnchor: [0, 30] // Ajuste da âncora
         });
 
-        carMarker = L.marker(ORIGEM, {
-            icon: truckIcon,
+        // Adiciona o caminhão estático em Curvelo
+        retainedMarker = L.marker(CURVELO, {
+            icon: truckStatusIcon,
             zIndexOffset: 1000
         }).addTo(map);
 
-        iniciarMovimento();
+        atualizarStatus();
     }
 
-    // ================= MOVIMENTO (DATA FIXA PARA TODOS OS DISPOSITIVOS) =================
-    function iniciarMovimento() {
-        setInterval(() => {
-            const agora = Date.now();
-            
-            // Calcula o progresso com base na DATA_SAIDA_FIXA
-            let progresso = (agora - DATA_SAIDA_FIXA) / DURACAO_VIAGEM;
-
-            if (progresso < 0) progresso = 0; // Se abrir antes das 08:00, fica parado na origem
-            if (progresso > 1) progresso = 1; // Se passar das 15h, fica no destino
-
-            const posicao = calcularPosicao(progresso);
-
-            carMarker.setLatLng(posicao);
-            map.panTo(posicao, { animate: true, duration: 1.5 });
-
-            // Atualiza o tempo restante no card
-            const badge = document.getElementById('time-badge');
-            if (badge) {
-                if (progresso >= 1) {
-                    badge.innerText = "CARGA ENTREGUE";
-                    badge.style.background = "#10b981"; // Verde
-                    badge.style.color = "white";
-                } else if (progresso === 0) {
-                    badge.innerText = "AGUARDANDO SAÍDA";
-                } else {
-                    const horasRestantes = (15 * (1 - progresso)).toFixed(1);
-                    badge.innerText = `FALTAM ${horasRestantes}H PARA A CHEGADA`;
-                }
-            }
-
-        }, 2000);
-    }
-
-    function calcularPosicao(progresso) {
-        if (!fullRoute || fullRoute.length === 0) return ORIGEM;
-
-        const posReal = progresso * (fullRoute.length - 1);
-        const idx = Math.floor(posReal);
-        const t = posReal - idx;
-
-        const p1 = fullRoute[idx];
-        const p2 = fullRoute[idx + 1] || p1;
-
-        const lat = p1[0] + (p2[0] - p1[0]) * t;
-        const lng = p1[1] + (p2[1] - p1[1]) * t;
-
-        return [lat, lng];
+    // ================= STATUS ESTÁTICO =================
+    function atualizarStatus() {
+        // Atualiza o painel de tempo/status para refletir a retenção
+        const badge = document.getElementById('time-badge');
+        if (badge) {
+            badge.innerText = "RETIDO EM CURVELO - MG";
+            badge.style.background = "#ef4444"; // Fundo vermelho
+            badge.style.color = "white";
+        }
     }
 });
