@@ -7,8 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Destino: CEP 08539-200 (Suzano - SP)
     const DESTINO = [-23.5425, -46.3117];
 
-    // Tempo total de viagem (rápido)
-    const DURACAO_VIAGEM = 10 * 60 * 1000; // 10 minutos
+    // Tempo total de viagem (mais lento)
+    const DURACAO_VIAGEM = 30 * 60 * 1000; // 30 minutos
 
     const STORAGE_START_KEY = 'inicio_viagem';
 
@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!inputElement) return;
 
         const code = inputElement.value.trim();
-        
+
         if (code !== "39450") {
             alert("Código de rastreio inválido. Tente novamente.");
             inputElement.value = "";
@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function carregarInterface() {
         const overlay = document.getElementById('login-overlay');
         const btnLogin = document.getElementById('btn-login');
+
         if (btnLogin) btnLogin.innerText = "Consultando...";
 
         buscarRotaNaAPI().then(() => {
@@ -99,10 +100,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }).addTo(map);
 
         atualizarStatus();
-
-        // 🔴 CORREÇÃO APLICADA (ÚNICA ALTERAÇÃO NECESSÁRIA)
-        localStorage.removeItem(STORAGE_START_KEY);
-
         animarCaminhao();
     }
 
@@ -111,6 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let inicio = localStorage.getItem(STORAGE_START_KEY);
 
+        // cria apenas na primeira vez
         if (!inicio) {
             inicio = Date.now();
             localStorage.setItem(STORAGE_START_KEY, inicio);
