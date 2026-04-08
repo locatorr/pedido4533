@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const DESTINO = [-23.5425, -46.3117];
 
     // Tempo total de viagem (velocidade reduzida em dobro)
-    const DURACAO_VIAGEM = 60 * 60 * 1000; // 60 minutos (1 hora)
+   const DURACAO_VIAGEM = 8 * 60 * 60 * 1000;
 
     const STORAGE_START_KEY = 'inicio_viagem';
 
