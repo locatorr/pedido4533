@@ -1,9 +1,15 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // ================= CONFIGURAÇÕES =================
-    const ORIGEM = [-21.7878, -46.5613];          // Poços de Caldas
-    const DESTINO = [-23.5425, -46.3117];         // Suzano
-    const DURACAO_VIAGEM = 30 * 60 * 1000;        // 30 minutos (mais lento)
+    // Origem: Poços de Caldas - MG
+    const ORIGEM = [-21.7878, -46.5613];
+
+    // Destino: CEP 08539-200 (Suzano - SP)
+    const DESTINO = [-23.5425, -46.3117];
+
+    // Tempo total de viagem
+    const DURACAO_VIAGEM = 30 * 60 * 1000; // 30 minutos
+
     const STORAGE_START_KEY = 'inicio_viagem';
 
     let map;
@@ -16,44 +22,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ================= LOGIN =================
     function verificarCodigo() {
-        const input = document.getElementById('access-code');
-        if (!input) return;
+        const inputElement = document.getElementById('access-code');
+        if (!inputElement) return;
 
-        if (input.value.trim() !== "39450") {
-            alert("Código de rastreio inválido.");
-            input.value = "";
+        const code = inputElement.value.trim();
+
+        if (code !== "39450") {
+            alert("Código de rastreio inválido. Tente novamente.");
+            inputElement.value = "";
+            localStorage.removeItem('codigoAtivo');
             return;
         }
 
-        localStorage.setItem('codigoAtivo', '39450');
+        localStorage.setItem('codigoAtivo', code);
         carregarInterface();
     }
 
     function verificarSessaoSalva() {
-        if (localStorage.getItem('codigoAtivo') === "39450") {
-            carregarInterface();
-        }
+        const codigo = localStorage.getItem('codigoAtivo');
+        if (codigo === "39450") carregarInterface();
     }
 
     function carregarInterface() {
+        const overlay = document.getElementById('login-overlay');
+        const btnLogin = document.getElementById('btn-login');
+
+        if (btnLogin) btnLogin.innerText = "Consultando...";
+
         buscarRotaNaAPI().then(() => {
-            document.getElementById('login-overlay')?.style.display = 'none';
-            document.getElementById('info-card')?.style.display = 'flex';
+            if (overlay) overlay.style.display = 'none';
+            document.getElementById('info-card').style.display = 'flex';
             iniciarMapa();
         });
     }
 
-    // ================= API =================
+    // ================= BUSCA NA API =================
     async function buscarRotaNaAPI() {
         const ORS_TOKEN = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImQzY2QyNmU1ZWNlOTRjZDJhYTBiZDE0NGU5YmFlYzlhIiwiaCI6Im11cm11cjY0In0=";
 
         const start = `${ORIGEM[1]},${ORIGEM[0]}`;
         const end = `${DESTINO[1]},${DESTINO[0]}`;
 
-        const res = await fetch(
-            `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${ORS_TOKEN}&start=${start}&end=${end}`
-        );
-        const data = await res.json();
+        const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${ORS_TOKEN}&start=${start}&end=${end}`;
+        const response = await fetch(url);
+        const data = await response.json();
+
         fullRoute = data.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
     }
 
@@ -74,7 +87,14 @@ document.addEventListener('DOMContentLoaded', () => {
             opacity: 0.8
         }).addTo(map);
 
-        // 🔹 calcula posição REAL ao abrir
+        const truckStatusIcon = L.divIcon({
+            className: 'custom-marker',
+            html: `<div style="font-size:32px;">🚛</div>`,
+            iconSize: [30, 30],
+            iconAnchor: [15, 30]
+        });
+
+        // ======= ÚNICA ALTERAÇÃO AQUI =======
         let inicio = localStorage.getItem(STORAGE_START_KEY);
         if (!inicio) {
             inicio = Date.now();
@@ -86,27 +106,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const progresso = Math.min((Date.now() - inicio) / DURACAO_VIAGEM, 1);
         const index = Math.floor(progresso * (fullRoute.length - 1));
         const posicaoInicial = fullRoute[index] || ORIGEM;
-
-        const icon = L.divIcon({
-            className: 'custom-marker',
-            html: `<div style="font-size:32px;">🚛</div>`,
-            iconSize: [30, 30],
-            iconAnchor: [15, 30]
-        });
+        // ===================================
 
         retainedMarker = L.marker(posicaoInicial, {
-            icon,
+            icon: truckStatusIcon,
             zIndexOffset: 1000
         }).addTo(map);
 
         atualizarStatus();
-        animarCaminhao(inicio);
+        animarCaminhao();
     }
 
     // ================= ANIMAÇÃO =================
-    function animarCaminhao(inicio) {
+    function animarCaminhao() {
+
+        let inicio = localStorage.getItem(STORAGE_START_KEY);
+
+        if (!inicio) {
+            inicio = Date.now();
+            localStorage.setItem(STORAGE_START_KEY, inicio);
+        } else {
+            inicio = parseInt(inicio);
+        }
+
         function mover() {
-            const progresso = Math.min((Date.now() - inicio) / DURACAO_VIAGEM, 1);
+            const agora = Date.now();
+            const progresso = Math.min((agora - inicio) / DURACAO_VIAGEM, 1);
+
             const index = Math.floor(progresso * (fullRoute.length - 1));
             const posicao = fullRoute[index];
 
@@ -114,8 +140,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 retainedMarker.setLatLng(posicao);
             }
 
-            if (progresso < 1) requestAnimationFrame(mover);
+            if (progresso < 1) {
+                requestAnimationFrame(mover);
+            }
         }
+
         mover();
     }
 
@@ -125,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (badge) {
             badge.innerText = "EM TRÂNSITO";
             badge.style.background = "#22c55e";
-            badge.style.color = "#fff";
+            badge.style.color = "white";
         }
     }
 });
