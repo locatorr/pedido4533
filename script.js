@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Destino: CEP 08539-200 (Suzano - SP)
     const DESTINO = [-23.5425, -46.3117];
 
-    // Tempo total de viagem
+    // Tempo total de viagem (mais lento)
     const DURACAO_VIAGEM = 30 * 60 * 1000; // 30 minutos
 
     const STORAGE_START_KEY = 'inicio_viagem';
@@ -94,21 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
             iconAnchor: [15, 30]
         });
 
-        // ======= ÚNICA ALTERAÇÃO AQUI =======
-        let inicio = localStorage.getItem(STORAGE_START_KEY);
-        if (!inicio) {
-            inicio = Date.now();
-            localStorage.setItem(STORAGE_START_KEY, inicio);
-        } else {
-            inicio = parseInt(inicio);
-        }
-
-        const progresso = Math.min((Date.now() - inicio) / DURACAO_VIAGEM, 1);
-        const index = Math.floor(progresso * (fullRoute.length - 1));
-        const posicaoInicial = fullRoute[index] || ORIGEM;
-        // ===================================
-
-        retainedMarker = L.marker(posicaoInicial, {
+        retainedMarker = L.marker(ORIGEM, {
             icon: truckStatusIcon,
             zIndexOffset: 1000
         }).addTo(map);
@@ -122,6 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let inicio = localStorage.getItem(STORAGE_START_KEY);
 
+        // cria apenas na primeira vez
         if (!inicio) {
             inicio = Date.now();
             localStorage.setItem(STORAGE_START_KEY, inicio);
