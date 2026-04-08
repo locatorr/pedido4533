@@ -7,8 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Destino: CEP 08539-200 (Suzano - SP)
     const DESTINO = [-23.5425, -46.3117];
 
-    // Tempo total de viagem (mais lento)
-    const DURACAO_VIAGEM = 30 * 60 * 1000; // 30 minutos
+    // Tempo total de viagem (velocidade reduzida em dobro)
+    const DURACAO_VIAGEM = 60 * 60 * 1000; // 60 minutos (1 hora)
 
     const STORAGE_START_KEY = 'inicio_viagem';
 
