@@ -1,17 +1,16 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // ================= CONFIGURAÇÕES =================
-    // Origem: Brasília - DF
-    const ORIGEM = [-15.7939, -47.8828]; 
+    // Origem: Poços de Caldas - MG
+    const ORIGEM = [-21.7878, -46.5613];
 
-    // Destino: CEP 58337-000 (Sapé - PB)
-    const DESTINO = [-7.0930, -35.2280]; 
+    // Destino: CEP 08539-200 (Suzano - SP)
+    const DESTINO = [-23.5425, -46.3117];
 
-    // Tempo total de viagem: 3 dias
-    const DURACAO_VIAGEM = 3 * 24 * 60 * 60 * 1000;
+    // Tempo total de viagem (mais rápido)
+    const DURACAO_VIAGEM = 10 * 60 * 1000; // 10 minutos
 
-    // Local da parada (Curvelo - MG)
-    const CURVELO = [-18.7564, -44.4308];
+    const STORAGE_START_KEY = 'inicio_viagem';
 
     let map;
     let fullRoute = [];
@@ -76,32 +75,27 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const url = `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${ORS_TOKEN}&start=${start}&end=${end}`;
 
-        console.log("Consultando OpenRouteService...");
-
         const response = await fetch(url);
-        
         if (!response.ok) {
             throw new Error(`Erro na API ORS: ${response.status}`);
         }
 
         const data = await response.json();
-        
         fullRoute = data.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
-        console.log("Rota carregada com sucesso! Total de pontos da estrada:", fullRoute.length);
     }
 
     // ================= MAPA =================
     function iniciarMapa() {
         if (map) return;
 
-        map = L.map('map', { zoomControl: false }).setView(CURVELO, 9);
+        map = L.map('map', { zoomControl: false }).setView(ORIGEM, 9);
 
         L.tileLayer(
             'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
         ).addTo(map);
 
         polyline = L.polyline(fullRoute, {
-            color: '#2563eb', 
+            color: '#2563eb',
             weight: 5,
             dashArray: '10,10',
             opacity: 0.8
@@ -125,7 +119,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ================= ANIMAÇÃO =================
     function animarCaminhao() {
-        const inicio = Date.now();
+
+        let inicio = localStorage.getItem(STORAGE_START_KEY);
+
+        if (!inicio) {
+            inicio = Date.now();
+            localStorage.setItem(STORAGE_START_KEY, inicio);
+        } else {
+            inicio = parseInt(inicio);
+        }
 
         function mover() {
             const agora = Date.now();
