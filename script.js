@@ -1,19 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // ================= CONFIGURAÇÕES =================
-    // Origem: Poços de Caldas - MG
+    // Origem: Poços de Caldas - MG (apenas referência)
     const ORIGEM = [-21.7878, -46.5613];
 
-    // Destino: Suzano - SP
+    // Destino: Suzano - SP (não será alcançado)
     const DESTINO = [-23.5425, -46.3117];
 
-    // Duração total da viagem (8 horas simuladas)
-    const DURACAO_VIAGEM = 8 * 60 * 60 * 1000;
-
-    // Ponto ANTES da entrada de Campinas-SP (PRF)
+    // Ponto antes da entrada de Campinas-SP (PRF)
     const PARADA_PRF = [-22.9655, -47.0552];
-
-    const STORAGE_START_KEY = 'inicio_viagem';
 
     let map;
     let fullRoute = [];
@@ -75,9 +70,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ================= MAPA =================
     function iniciarMapa() {
-        if (map) return;
 
-        map = L.map('map', { zoomControl: false }).setView(ORIGEM, 8);
+        map = L.map('map', { zoomControl: false }).setView(PARADA_PRF, 9);
 
         L.tileLayer(
             'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
@@ -87,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
             color: '#2563eb',
             weight: 5,
             dashArray: '10,10',
-            opacity: 0.8
+            opacity: 0.5
         }).addTo(map);
 
         const truckIcon = L.divIcon({
@@ -97,73 +91,16 @@ document.addEventListener('DOMContentLoaded', () => {
             iconAnchor: [15, 30]
         });
 
-        retainedMarker = L.marker(ORIGEM, {
+        // CAMINHÃO JÁ PARADO NA PRF
+        retainedMarker = L.marker(PARADA_PRF, {
             icon: truckIcon,
             zIndexOffset: 1000
         }).addTo(map);
 
-        atualizarStatusEmTransito();
-        animarCaminhao();
-    }
-
-    // ================= ANIMAÇÃO =================
-    function animarCaminhao() {
-
-        let inicio = localStorage.getItem(STORAGE_START_KEY);
-
-        if (!inicio) {
-            inicio = Date.now();
-            localStorage.setItem(STORAGE_START_KEY, inicio);
-        } else {
-            inicio = parseInt(inicio);
-        }
-
-        // Descobre o ponto da rota mais próximo da PRF
-        let paradaIndex = fullRoute.reduce((closest, point, index) => {
-            const dist = Math.hypot(
-                point[0] - PARADA_PRF[0],
-                point[1] - PARADA_PRF[1]
-            );
-            return dist < closest.dist
-                ? { index, dist }
-                : closest;
-        }, { index: 0, dist: Infinity }).index;
-
-        function mover() {
-            const agora = Date.now();
-            const progresso = Math.min((agora - inicio) / DURACAO_VIAGEM, 1);
-
-            const index = Math.min(
-                Math.floor(progresso * (fullRoute.length - 1)),
-                paradaIndex
-            );
-
-            const posicao = fullRoute[index];
-
-            if (retainedMarker && posicao) {
-                retainedMarker.setLatLng(posicao);
-            }
-
-            if (index < paradaIndex) {
-                requestAnimationFrame(mover);
-            } else {
-                atualizarStatusPRF();
-            }
-        }
-
-        mover();
+        atualizarStatusPRF();
     }
 
     // ================= STATUS =================
-    function atualizarStatusEmTransito() {
-        const badge = document.getElementById('time-badge');
-        if (badge) {
-            badge.innerText = "EM TRÂNSITO";
-            badge.style.background = "#22c55e";
-            badge.style.color = "white";
-        }
-    }
-
     function atualizarStatusPRF() {
         const badge = document.getElementById('time-badge');
         if (badge) {
