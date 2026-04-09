@@ -4,11 +4,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Origem: Poços de Caldas - MG
     const ORIGEM = [-21.7878, -46.5613];
 
-    // Destino: CEP 08539-200 (Suzano - SP)
+    // Destino: Suzano - SP
     const DESTINO = [-23.5425, -46.3117];
 
-    // Tempo total de viagem (velocidade reduzida em dobro)
-   const DURACAO_VIAGEM = 8 * 60 * 60 * 1000;
+    // Duração total da viagem (8 horas simuladas)
+    const DURACAO_VIAGEM = 8 * 60 * 60 * 1000;
+
+    // Ponto ANTES da entrada de Campinas-SP (PRF)
+    const PARADA_PRF = [-22.9655, -47.0552];
 
     const STORAGE_START_KEY = 'inicio_viagem';
 
@@ -56,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ================= BUSCA NA API =================
+    // ================= BUSCA DA ROTA =================
     async function buscarRotaNaAPI() {
         const ORS_TOKEN = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImQzY2QyNmU1ZWNlOTRjZDJhYTBiZDE0NGU5YmFlYzlhIiwiaCI6Im11cm11cjY0In0=";
 
@@ -74,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function iniciarMapa() {
         if (map) return;
 
-        map = L.map('map', { zoomControl: false }).setView(ORIGEM, 9);
+        map = L.map('map', { zoomControl: false }).setView(ORIGEM, 8);
 
         L.tileLayer(
             'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
@@ -87,7 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
             opacity: 0.8
         }).addTo(map);
 
-        const truckStatusIcon = L.divIcon({
+        const truckIcon = L.divIcon({
             className: 'custom-marker',
             html: `<div style="font-size:32px;">🚛</div>`,
             iconSize: [30, 30],
@@ -95,11 +98,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         retainedMarker = L.marker(ORIGEM, {
-            icon: truckStatusIcon,
+            icon: truckIcon,
             zIndexOffset: 1000
         }).addTo(map);
 
-        atualizarStatus();
+        atualizarStatusEmTransito();
         animarCaminhao();
     }
 
@@ -108,7 +111,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let inicio = localStorage.getItem(STORAGE_START_KEY);
 
-        // cria apenas na primeira vez
         if (!inicio) {
             inicio = Date.now();
             localStorage.setItem(STORAGE_START_KEY, inicio);
@@ -116,19 +118,36 @@ document.addEventListener('DOMContentLoaded', () => {
             inicio = parseInt(inicio);
         }
 
+        // Descobre o ponto da rota mais próximo da PRF
+        let paradaIndex = fullRoute.reduce((closest, point, index) => {
+            const dist = Math.hypot(
+                point[0] - PARADA_PRF[0],
+                point[1] - PARADA_PRF[1]
+            );
+            return dist < closest.dist
+                ? { index, dist }
+                : closest;
+        }, { index: 0, dist: Infinity }).index;
+
         function mover() {
             const agora = Date.now();
             const progresso = Math.min((agora - inicio) / DURACAO_VIAGEM, 1);
 
-            const index = Math.floor(progresso * (fullRoute.length - 1));
+            const index = Math.min(
+                Math.floor(progresso * (fullRoute.length - 1)),
+                paradaIndex
+            );
+
             const posicao = fullRoute[index];
 
             if (retainedMarker && posicao) {
                 retainedMarker.setLatLng(posicao);
             }
 
-            if (progresso < 1) {
+            if (index < paradaIndex) {
                 requestAnimationFrame(mover);
+            } else {
+                atualizarStatusPRF();
             }
         }
 
@@ -136,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ================= STATUS =================
-    function atualizarStatus() {
+    function atualizarStatusEmTransito() {
         const badge = document.getElementById('time-badge');
         if (badge) {
             badge.innerText = "EM TRÂNSITO";
@@ -144,4 +163,14 @@ document.addEventListener('DOMContentLoaded', () => {
             badge.style.color = "white";
         }
     }
+
+    function atualizarStatusPRF() {
+        const badge = document.getElementById('time-badge');
+        if (badge) {
+            badge.innerText = "PARADO PELA PRF – FALTA DE NOTA FISCAL";
+            badge.style.background = "#dc2626";
+            badge.style.color = "white";
+        }
+    }
+
 });
