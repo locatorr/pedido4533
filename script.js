@@ -49,9 +49,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (btnLogin) btnLogin.innerText = "Consultando...";
 
-        // ✅ ALTERAÇÃO FEITA AQUI (RESET DA VIAGEM)
-        localStorage.removeItem(STORAGE_START_KEY);
-
         buscarRotaNaAPI().then(() => {
             if (overlay) overlay.style.display = 'none';
             document.getElementById('info-card').style.display = 'flex';
@@ -110,6 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function animarCaminhao() {
         let inicio = localStorage.getItem(STORAGE_START_KEY);
 
+        // cria apenas uma vez
         if (!inicio) {
             inicio = Date.now();
             localStorage.setItem(STORAGE_START_KEY, inicio);
@@ -119,7 +117,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function mover() {
             const agora = Date.now();
-            const progresso = Math.min((agora - inicio) / DURACAO_VIAGEM, 1);
+            const progresso = (agora - inicio) / DURACAO_VIAGEM;
+
+            // chegou ao destino → para no final
+            if (progresso >= 1) {
+                retainedMarker.setLatLng(fullRoute[fullRoute.length - 1]);
+                return;
+            }
 
             const index = Math.floor(progresso * (fullRoute.length - 1));
             const posicao = fullRoute[index];
@@ -128,9 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 retainedMarker.setLatLng(posicao);
             }
 
-            if (progresso < 1) {
-                requestAnimationFrame(mover);
-            }
+            requestAnimationFrame(mover);
         }
 
         mover();
