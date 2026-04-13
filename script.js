@@ -1,16 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // ================= CONFIGURAÇÕES =================
-    // Origem: Montes Claros - MG
-    const ORIGEM = [-16.7286, -43.8578];
+    // Origem: Poços de Caldas - MG (apenas referência)
+    const ORIGEM = [-21.7878, -46.5613];
 
-    // Destino: CEP 77493-000 (São Salvador do Tocantins - TO)
-    const DESTINO = [-12.7453, -48.2354];
+    // Destino: Suzano - SP (não será alcançado)
+    const DESTINO = [-23.5425, -46.3117];
 
-    // Tempo total de viagem
-    const DURACAO_VIAGEM = 8 * 60 * 60 * 1000;
-
-    const STORAGE_START_KEY = 'inicio_viagem';
+    // Ponto em Luizlândia do Oeste - MG (PRF)
+    const PARADA_PRF = [-18.9820, -44.0550];
 
     let map;
     let fullRoute = [];
@@ -56,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ================= BUSCA NA API =================
+    // ================= BUSCA DA ROTA =================
     async function buscarRotaNaAPI() {
         const ORS_TOKEN = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImQzY2QyNmU1ZWNlOTRjZDJhYTBiZDE0NGU5YmFlYzlhIiwiaCI6Im11cm11cjY0In0=";
 
@@ -72,9 +70,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ================= MAPA =================
     function iniciarMapa() {
-        if (map) return;
 
-        map = L.map('map', { zoomControl: false }).setView(ORIGEM, 9);
+        map = L.map('map', { zoomControl: false }).setView(PARADA_PRF, 9);
 
         L.tileLayer(
             'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
@@ -84,67 +81,33 @@ document.addEventListener('DOMContentLoaded', () => {
             color: '#2563eb',
             weight: 5,
             dashArray: '10,10',
-            opacity: 0.8
+            opacity: 0.5
         }).addTo(map);
 
-        const truckStatusIcon = L.divIcon({
+        const truckIcon = L.divIcon({
             className: 'custom-marker',
             html: `<div style="font-size:32px;">🚛</div>`,
             iconSize: [30, 30],
             iconAnchor: [15, 30]
         });
 
-        retainedMarker = L.marker(ORIGEM, {
-            icon: truckStatusIcon,
+        // CAMINHÃO JÁ PARADO NA PRF
+        retainedMarker = L.marker(PARADA_PRF, {
+            icon: truckIcon,
             zIndexOffset: 1000
         }).addTo(map);
 
-        atualizarStatus();
-        animarCaminhao();
-    }
-
-    // ================= ANIMAÇÃO =================
-    function animarCaminhao() {
-        let inicio = localStorage.getItem(STORAGE_START_KEY);
-
-        // cria apenas uma vez
-        if (!inicio) {
-            inicio = Date.now();
-            localStorage.setItem(STORAGE_START_KEY, inicio);
-        } else {
-            inicio = parseInt(inicio);
-        }
-
-        function mover() {
-            const agora = Date.now();
-            const progresso = (agora - inicio) / DURACAO_VIAGEM;
-
-            // chegou ao destino → para no final
-            if (progresso >= 1) {
-                retainedMarker.setLatLng(fullRoute[fullRoute.length - 1]);
-                return;
-            }
-
-            const index = Math.floor(progresso * (fullRoute.length - 1));
-            const posicao = fullRoute[index];
-
-            if (retainedMarker && posicao) {
-                retainedMarker.setLatLng(posicao);
-            }
-
-            requestAnimationFrame(mover);
-        }
-
-        mover();
+        atualizarStatusPRF();
     }
 
     // ================= STATUS =================
-    function atualizarStatus() {
+    function atualizarStatusPRF() {
         const badge = document.getElementById('time-badge');
         if (badge) {
-            badge.innerText = "EM TRÂNSITO";
-            badge.style.background = "#22c55e";
+            badge.innerText = "PARADO PELA PRF – FALTA DE NOTA FISCAL";
+            badge.style.background = "#dc2626";
             badge.style.color = "white";
         }
     }
+
 });
