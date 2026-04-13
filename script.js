@@ -2,12 +2,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ================= CONFIGURAÇÕES =================
     // Origem: Montes Claros - MG
-const ORIGEM = [-16.7286, -43.8578];
+    const ORIGEM = [-16.7286, -43.8578];
 
-// Destino: CEP 77493-000 (São Salvador do Tocantins - TO)
-const DESTINO = [-12.7453, -48.2354];
-    // Tempo total de viagem (velocidade reduzida em dobro)
-   const DURACAO_VIAGEM = 8 * 60 * 60 * 1000;
+    // Destino: CEP 77493-000 (São Salvador do Tocantins - TO)
+    const DESTINO = [-12.7453, -48.2354];
+
+    // Tempo total de viagem
+    const DURACAO_VIAGEM = 8 * 60 * 60 * 1000;
 
     const STORAGE_START_KEY = 'inicio_viagem';
 
@@ -47,6 +48,9 @@ const DESTINO = [-12.7453, -48.2354];
         const btnLogin = document.getElementById('btn-login');
 
         if (btnLogin) btnLogin.innerText = "Consultando...";
+
+        // ✅ ALTERAÇÃO FEITA AQUI (RESET DA VIAGEM)
+        localStorage.removeItem(STORAGE_START_KEY);
 
         buscarRotaNaAPI().then(() => {
             if (overlay) overlay.style.display = 'none';
@@ -104,10 +108,8 @@ const DESTINO = [-12.7453, -48.2354];
 
     // ================= ANIMAÇÃO =================
     function animarCaminhao() {
-
         let inicio = localStorage.getItem(STORAGE_START_KEY);
 
-        // cria apenas na primeira vez
         if (!inicio) {
             inicio = Date.now();
             localStorage.setItem(STORAGE_START_KEY, inicio);
