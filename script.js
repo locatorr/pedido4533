@@ -86,18 +86,53 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const truckIcon = L.divIcon({
             className: 'custom-marker',
-            html: `<div style="font-size:32px;">🚛</div>`,
+            html: `<div style="font-size:32px;">🏍️</div>`,
             iconSize: [30, 30],
             iconAnchor: [15, 30]
         });
 
-        // CAMINHÃO JÁ PARADO NA PRF
+        // Moto parada na PRF
         retainedMarker = L.marker(PARADA_PRF, {
             icon: truckIcon,
             zIndexOffset: 1000
         }).addTo(map);
 
         atualizarStatusPRF();
+
+        // Liberação da PRF após 6 segundos
+        setTimeout(() => {
+            voltarParaRotaOriginal();
+        }, 6000);
+    }
+
+    // ================= RETORNO À ROTA =================
+    function voltarParaRotaOriginal() {
+        if (!retainedMarker || fullRoute.length === 0) return;
+
+        let closestIndex = 0;
+        let minDistance = Infinity;
+
+        fullRoute.forEach((point, index) => {
+            const dist = map.distance(PARADA_PRF, point);
+            if (dist < minDistance) {
+                minDistance = dist;
+                closestIndex = index;
+            }
+        });
+
+        const retornoRota = fullRoute.slice(closestIndex);
+        let i = 0;
+
+        const interval = setInterval(() => {
+            if (i >= retornoRota.length) {
+                clearInterval(interval);
+                atualizarStatusEmRota();
+                return;
+            }
+
+            retainedMarker.setLatLng(retornoRota[i]);
+            i++;
+        }, 300);
     }
 
     // ================= STATUS =================
@@ -106,6 +141,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (badge) {
             badge.innerText = "PARADO PELA PRF – FALTA DE NOTA FISCAL";
             badge.style.background = "#dc2626";
+            badge.style.color = "white";
+        }
+    }
+
+    function atualizarStatusEmRota() {
+        const badge = document.getElementById('time-badge');
+        if (badge) {
+            badge.innerText = "EM ROTA – DOCUMENTAÇÃO REGULARIZADA";
+            badge.style.background = "#16a34a";
             badge.style.color = "white";
         }
     }
