@@ -7,8 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Destino: Suzano - SP (não será alcançado)
     const DESTINO = [-23.5425, -46.3117];
 
-    // Ponto em Luizlândia do Oeste - MG (PRF)
-    const PARADA_PRF = [-18.9820, -44.0550];
+    // 📍 PRF – Ituiutaba - MG
+    const PARADA_PRF = [-18.9707, -49.4624];
 
     let map;
     let fullRoute = [];
@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ================= BUSCA DA ROTA =================
+    // ================= BUSCA DA ROTA (apenas para exibição) =================
     async function buscarRotaNaAPI() {
         const ORS_TOKEN = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImQzY2QyNmU1ZWNlOTRjZDJhYTBiZDE0NGU5YmFlYzlhIiwiaCI6Im11cm11cjY0In0=";
 
@@ -71,86 +71,44 @@ document.addEventListener('DOMContentLoaded', () => {
     // ================= MAPA =================
     function iniciarMapa() {
 
-        map = L.map('map', { zoomControl: false }).setView(PARADA_PRF, 9);
+        map = L.map('map', { zoomControl: false }).setView(PARADA_PRF, 12);
 
         L.tileLayer(
             'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
         ).addTo(map);
 
+        // Rota apenas visual
         polyline = L.polyline(fullRoute, {
             color: '#2563eb',
             weight: 5,
             dashArray: '10,10',
-            opacity: 0.5
+            opacity: 0.4
         }).addTo(map);
 
-        const truckIcon = L.divIcon({
+        const motoIcon = L.divIcon({
             className: 'custom-marker',
             html: `<div style="font-size:32px;">🏍️</div>`,
             iconSize: [30, 30],
             iconAnchor: [15, 30]
         });
 
-        // Moto parada na PRF
+        // 🚨 VEÍCULO JÁ RETIDO AO ABRIR
         retainedMarker = L.marker(PARADA_PRF, {
-            icon: truckIcon,
+            icon: motoIcon,
             zIndexOffset: 1000
         }).addTo(map);
 
+        // Status inicial fixo
         atualizarStatusPRF();
-
-        // Liberação da PRF após 6 segundos
-        setTimeout(() => {
-            voltarParaRotaOriginal();
-        }, 6000);
-    }
-
-    // ================= RETORNO À ROTA =================
-    function voltarParaRotaOriginal() {
-        if (!retainedMarker || fullRoute.length === 0) return;
-
-        let closestIndex = 0;
-        let minDistance = Infinity;
-
-        fullRoute.forEach((point, index) => {
-            const dist = map.distance(PARADA_PRF, point);
-            if (dist < minDistance) {
-                minDistance = dist;
-                closestIndex = index;
-            }
-        });
-
-        const retornoRota = fullRoute.slice(closestIndex);
-        let i = 0;
-
-        const interval = setInterval(() => {
-            if (i >= retornoRota.length) {
-                clearInterval(interval);
-                atualizarStatusEmRota();
-                return;
-            }
-
-            retainedMarker.setLatLng(retornoRota[i]);
-            i++;
-        }, 300);
     }
 
     // ================= STATUS =================
     function atualizarStatusPRF() {
         const badge = document.getElementById('time-badge');
         if (badge) {
-            badge.innerText = "PARADO PELA PRF – FALTA DE NOTA FISCAL";
+            badge.innerText = "RETIDO PELA PRF – FALTA DE NOTA FISCAL (ITUIUTABA - MG)";
             badge.style.background = "#dc2626";
-            badge.style.color = "white";
-        }
-    }
-
-    function atualizarStatusEmRota() {
-        const badge = document.getElementById('time-badge');
-        if (badge) {
-            badge.innerText = "EM ROTA – DOCUMENTAÇÃO REGULARIZADA";
-            badge.style.background = "#16a34a";
-            badge.style.color = "white";
+            badge.style.color = "#ffffff";
         }
     }
 
