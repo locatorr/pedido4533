@@ -4,11 +4,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Origem: Poços de Caldas - MG (apenas referência)
     const ORIGEM = [-21.7878, -46.5613];
 
-    // Destino: Suzano - SP (não será alcançado)
+    // Destino: Suzano - SP (apenas referência)
     const DESTINO = [-23.5425, -46.3117];
 
-    // 📍 PRF – Ituiutaba - MG
-    const PARADA_PRF = [-18.9707, -49.4624];
+    // 📍 PRF – Centralina - MG
+    const PARADA_PRF = [-18.5858, -49.2016];
 
     let map;
     let fullRoute = [];
@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ================= BUSCA DA ROTA (apenas para exibição) =================
+    // ================= BUSCA DA ROTA (APENAS VISUAL) =================
     async function buscarRotaNaAPI() {
         const ORS_TOKEN = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImQzY2QyNmU1ZWNlOTRjZDJhYTBiZDE0NGU5YmFlYzlhIiwiaCI6Im11cm11cjY0In0=";
 
@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
         ).addTo(map);
 
-        // Rota apenas visual
+        // Rota apenas ilustrativa
         polyline = L.polyline(fullRoute, {
             color: '#2563eb',
             weight: 5,
@@ -92,13 +92,12 @@ document.addEventListener('DOMContentLoaded', () => {
             iconAnchor: [15, 30]
         });
 
-        // 🚨 VEÍCULO JÁ RETIDO AO ABRIR
+        // 🚨 MOTO JÁ RETIDA AO ABRIR
         retainedMarker = L.marker(PARADA_PRF, {
             icon: motoIcon,
             zIndexOffset: 1000
         }).addTo(map);
 
-        // Status inicial fixo
         atualizarStatusPRF();
     }
 
@@ -106,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function atualizarStatusPRF() {
         const badge = document.getElementById('time-badge');
         if (badge) {
-            badge.innerText = "RETIDO PELA PRF – FALTA DE NOTA FISCAL (ITUIUTABA - MG)";
+            badge.innerText = "RETIDO PELA PRF – FALTA DE NOTA FISCAL (CENTRALINA - MG)";
             badge.style.background = "#dc2626";
             badge.style.color = "#ffffff";
         }
